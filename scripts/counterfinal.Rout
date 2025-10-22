@@ -1,0 +1,120 @@
+
+R version 4.4.1 (2024-06-14) -- "Race for Your Life"
+Copyright (C) 2024 The R Foundation for Statistical Computing
+Platform: x86_64-apple-darwin20
+
+R is free software and comes with ABSOLUTELY NO WARRANTY.
+You are welcome to redistribute it under certain conditions.
+Type 'license()' or 'licence()' for distribution details.
+
+  Natural language support but running in an English locale
+
+R is a collaborative project with many contributors.
+Type 'contributors()' for more information and
+'citation()' on how to cite R or R packages in publications.
+
+Type 'demo()' for some demos, 'help()' for on-line help, or
+'help.start()' for an HTML browser interface to help.
+Type 'q()' to quit R.
+
+> # counterfactuals via policy-neutral transmission scaling with robust injection/fallback
+> # all comments are lowercase and concise
+> 
+> suppressPackageStartupMessages({
++   library(dplyr); library(tidyr); library(purrr)
++   library(ggplot2); library(ggthemes); library(splines)
++   library(shellpipes); library(macpan2)
++   library(ggh4x); library(scales); library(tibble);
++   library(tidyverse); library(broom.mixed); library(zoo)
++ })
+> 
+> set.seed(2025)
+> try(loadEnvironments(), silent = TRUE)
+> 
+> date0    <- as.Date("2021-12-15")
+> date_end <- as.Date("2022-05-22")
+> offset0  <- 150
+> upper_plot_time <- 300
+> start_date <- date0
+> basis_cols <- 5
+> tau_days <- 2.0
+> 
+> # load saved inputs 
+> calibrator   <- readRDS("calibrator_opt.rds")  
+> seroprevdata <- readRDS("seroprevdata.rds")              
+> time_steps   <- max(seroprevdata$time)
+> 
+> # initialize calibrated model spec with optimized parameters
+> spec_fixed <- mp_optimized_spec(calibrator, "modified")
+> 
+> # extract β̂(t) and policies-
+> # beta_hat(t) from calibrator and extract beta
+> beta_df <- calibrator |>
++   mp_trajectory_sd(conf.int = TRUE, back_transform = TRUE) |>
++   dplyr::filter(matrix == "beta_thing", time >= offset0, time <= upper_plot_time) |>
++   mutate(date = seq(start_date, by = "day", length.out = length(value)), beta_hat = value) |>
++   filter(date >= date0, date <= date_end) |>
++   select(date, beta_hat) 
+> 
+> # simulate daily incidence as integers for presentation
+> set_vax <- function(spec, scale) {
++   if (is.null(spec$default$double_vac_values_base))
++     spec$default$double_vac_values_base  <- spec_fixed$default$double_vac_values
++   if (is.null(spec$default$booster_vac_values_base))
++     spec$default$booster_vac_values_base <- spec_fixed$default$booster_vac_values
++   spec$default$double_vac_values  <- scale * spec$default$double_vac_values_base
++   spec$default$booster_vac_values <- scale * spec$default$booster_vac_values_base
++   spec
++ }
+> 
+> simulate_series <- function(spec, scale) {
++   cf <- spec %>% set_vax(scale)
++   cf %>%
++     mp_simulator(time_steps, outputs = "inc") %>%
++     mp_trajectory() %>%
++     filter(matrix == "inc") %>%
++     mutate(date = date0 + (time - offset0)) %>%
++     filter(date >= date0, date <= date_end) %>%
++     transmute(date, inc = value)
++ }
+> 
+> # ALS scenarios required
+> als_cols <- c("als2_only", "als4_only", "no_als_only")
+> als_fac  <- factor(als_cols, levels = als_cols)
+> 
+> # use baseline rate (observed @ 100%) and replicate infection values across vaccination scales
+> baseline_vax_scales <- c("25%" = 1.0, "50%" = 1.0, "75%" = 1.0)
+> baseline_vax_levels <- names(baseline_vax_scales)
+> baseline_vax_fac    <- factor(baseline_vax_levels, levels = baseline_vax_levels)
+> 
+> baseline <- purrr::imap_dfr(baseline_vax_scales, function(scl, vlbl) {
++   simulate_series(spec_fixed, scl) |>
++     dplyr::mutate(
++       vax = factor(vlbl, levels = levels(baseline_vax_fac)),
++       series = "observed"
++     ) |>
++     mutate(inc = as.integer(inc)) |>
++     tidyr::crossing(tibble(als_scen = als_fac)) |>   # replicate to all als columns
++     dplyr::select(date, inc, vax, als_scen, series)
++ }) |>
++   arrange(als_scen)
+> 
+> #print(ggplot(baseline) + geom_line(aes(date, inc)) + ggh4x::facet_grid2(rows = vars(vax), cols = vars(als_scen), axes = "all"))
+> print(baseline)
+# A tibble: 1,431 × 5
+   date         inc vax   als_scen  series  
+   <date>     <int> <fct> <fct>     <chr>   
+ 1 2021-12-15   405 25%   als2_only observed
+ 2 2021-12-16   413 25%   als2_only observed
+ 3 2021-12-17   422 25%   als2_only observed
+ 4 2021-12-18   430 25%   als2_only observed
+ 5 2021-12-19   438 25%   als2_only observed
+ 6 2021-12-20   446 25%   als2_only observed
+ 7 2021-12-21   454 25%   als2_only observed
+ 8 2021-12-22   462 25%   als2_only observed
+ 9 2021-12-23   469 25%   als2_only observed
+10 2021-12-24   476 25%   als2_only observed
+# ℹ 1,421 more rows
+> 
+> 
+> quit()

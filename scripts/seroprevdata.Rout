@@ -1,0 +1,73 @@
+
+R version 4.4.1 (2024-06-14) -- "Race for Your Life"
+Copyright (C) 2024 The R Foundation for Statistical Computing
+Platform: x86_64-apple-darwin20
+
+R is free software and comes with ABSOLUTELY NO WARRANTY.
+You are welcome to redistribute it under certain conditions.
+Type 'license()' or 'licence()' for distribution details.
+
+  Natural language support but running in an English locale
+
+R is a collaborative project with many contributors.
+Type 'contributors()' for more information and
+'citation()' on how to cite R or R packages in publications.
+
+Type 'demo()' for some demos, 'help()' for on-line help, or
+'help.start()' for an HTML browser interface to help.
+Type 'q()' to quit R.
+
+> # load libraries
+> library(shellpipes)
+> library(zoo)
+> library(tidyverse)
+> 
+> # load saved environments
+> loadEnvironments()
+> 
+> # define study period
+> start_date <- "2021-12-15"
+> last_date  <- "2022-07-15"  # "2022-05-26"
+> 
+> # read and format seroprevalence data
+> seroprevalence <- csvRead()
+> seroprevalence <- seroprevalence |>
++   mutate(week_end = as.Date(week_end, format = "%Y-%m-%d")) |>
++   # filter anti-nucleocapsid antibodies (infection-only)
++   filter((geo == "NL") & (ab_estimate == "Anti-N estimate")) |>
++   rename_at("week_end", ~"date") |>
++   # keep only date and mean percentage
++   select(date, pct_mean) |>
++   # create index
++   mutate(day = 1:n())
+> 
+> print(seroprevalence)
+# A tibble: 187 × 3
+   date       pct_mean   day
+   <date>        <dbl> <int>
+ 1 2020-03-07  0.00219     1
+ 2 2020-03-14  0.00252     2
+ 3 2020-03-21  0.00288     3
+ 4 2020-03-28  0.00323     4
+ 5 2020-04-04  0.00358     5
+ 6 2020-04-11  0.00391     6
+ 7 2020-04-18  0.00419     7
+ 8 2020-04-25  0.00442     8
+ 9 2020-05-02  0.00461     9
+10 2020-05-09  0.00474    10
+# ℹ 177 more rows
+> 
+> # convert to seroprevalence matrix format for modeling
+> serodat <- seroprevalence |>
++   transmute(
++     NULL,
++     date,
++     time   = as.numeric(date - as.Date(start_date)) + 1 + offset0,
++     matrix = "serop",
++     value  = pct_mean
++   ) |>
++   filter(between(date, as.Date(start_date), as.Date(last_date)))
+> 
+> # save formatted matrix
+> rdsSave(serodat)
+> 

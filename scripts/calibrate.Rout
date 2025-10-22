@@ -1,0 +1,206 @@
+
+R version 4.4.1 (2024-06-14) -- "Race for Your Life"
+Copyright (C) 2024 The R Foundation for Statistical Computing
+Platform: x86_64-apple-darwin20
+
+R is free software and comes with ABSOLUTELY NO WARRANTY.
+You are welcome to redistribute it under certain conditions.
+Type 'license()' or 'licence()' for distribution details.
+
+  Natural language support but running in an English locale
+
+R is a collaborative project with many contributors.
+Type 'contributors()' for more information and
+'citation()' on how to cite R or R packages in publications.
+
+Type 'demo()' for some demos, 'help()' for on-line help, or
+'help.start()' for an HTML browser interface to help.
+Type 'q()' to quit R.
+
+> library(macpan2)
+> library(shellpipes)
+> rpcall("calibrate.Rout calibrate.R timevar_spec.rds seroprevdata.rds fitsero.rds params.rda")
+> #library(conflicted)
+> library(tidyverse)
+> library(dplyr)
+> library(ggthemes)
+> library(broom.mixed)
+> library(zoo)
+> library(ggplot2)
+> 
+> loadEnvironments()
+> 
+> # check macpan2 version
+> if (packageVersion("macpan2") < "2.5.0") {
++   stop(
++     "please install a new version of macpan2\n"
++     , "https://canmod.github.io/macpan2/#installation"
++   )
++ }
+> 
+> # ---------------------------------------
+> # Calibrate one scenario spec
+> # ---------------------------------------
+> calibrate_spec <- function(spec_file = "timevar_spec.rds",
++                            sero_file = "seroprevdata.rds",
++                            fitsero_file = "fitsero.rds",
++                            spline_beta = TRUE,
++                            upper_plot_time = 300) {
++ 
++   # ---------------------------------------
++   # Load data and setup
++   # ---------------------------------------
++   timevar_spec <- rdsRead(spec_file)
++   seroprevdata <- rdsRead(sero_file)
++   fitserodata  <- rdsRead(fitsero_file)
++   time_steps   <- max(seroprevdata$time)
++   #tag          <- gsub("\\.rds$", "", basename(spec_file))
++   set.seed(2025); options(macpan2_log_dir = ".")
++ 
++   # ---------------------------------------
++   # Construct spline basis for beta(t)
++   # ---------------------------------------
++   if (isTRUE(spline_beta)) {
++     basis_cols <- 5L
++     X <- splines::ns(1:time_steps, basis_cols, intercept = TRUE,
++                      Boundary.knots = c(offset0, time_steps))
++     timevar_spec <- mp_tmb_insert_glm_timevar(timevar_spec,
++                                               parameter_name = "beta",
++                                               design_matrix = X,
++                                               timevar_coef = rep(0, basis_cols),
++                                               link_function = mp_log)
++   }
++ 
++   # ---------------------------------------
++   # Priors
++   # ---------------------------------------
++   get_prior <- function(trans) function(rng) {
++     mp_normal((trans(rng[1]) + trans(rng[2])) / 2,
++               log((trans(rng[2]) - trans(rng[1])) / (2 * 1.96)))
++   }
++ 
++   priors <- list(
++     log_beta      = mp_normal(log(0.25), log(1)),
++     time_var_beta = mp_normal(0, log(1)),
++     log_gamma_a   = get_prior(log)(prior_range$gamma_a),
++     log_gamma_i   = get_prior(log)(prior_range$gamma_i),
++     logit_kappa2  = get_prior(qlogis)(prior_range$kappa2),
++     logit_kappa3  = get_prior(qlogis)(prior_range$kappa3),
++     log_sigma     = get_prior(log)(prior_range$sigma)
++   )
++ 
++   # ---------------------------------------
++   # Prepare seroprevalence data
++   # ---------------------------------------
++   sero_for_fit <- seroprevdata |>
++     select(-date) |>
++     dplyr::filter(matrix == "serop") |>
++     mutate(matrix = "logit_serop", value = qlogis(value))
++ 
++   fitserodata <- seroprevdata |>
++     mutate(value = timevar_spec$default$N * (value - dplyr::lag(value)) / 7) |>
++     mutate(matrix = "inc")
++ 
++   # ---------------------------------------
++   # Calibrate and simulate
++   # ---------------------------------------
++   calibrator <- mp_tmb_calibrator(
++     spec   = timevar_spec |> mp_rk4(),
++     data   = sero_for_fit,
++     time   = mp_sim_bounds(1, time_steps),
++     traj   = list(logit_serop = mp_normal(sd = mp_fit(1))),
++     par    = priors,
++     outputs = c("log_beta_thing", "log_inc", "logit_serop")
++   )
++   mp_optimize(calibrator)
++ 
++   sims <- calibrator |>
++     mp_trajectory_sd(conf.int = TRUE, back_transform = TRUE) |>
++     dplyr::filter(time >= offset0)
++ 
++   # ---------------------------------------
++   # uncomment below to troubleshoot and show model fit 
++   # ---------------------------------------
++   lim_dat <- \(x) dplyr::filter(x, time <= upper_plot_time)
++ 
++   # Observed vs fitted incidence
++   # print(ggplot() +
++   #        geom_point(aes(time, value), data = lim_dat(seroprevdata)) +
++   #        geom_point(aes(time, value), data = lim_dat(fitserodata)) +
++   #        geom_line(aes(time, value), linewidth = 1, data = lim_dat(sims)) +
++   #        geom_ribbon(aes(x = time, ymin = conf.low, ymax = conf.high),alpha = 0.4, data = lim_dat(sims)) +
++   #        facet_wrap(~matrix, scales = "free", ncol = 1) +
++   #        scale_y_continuous(name = "") +
++   #        scale_x_continuous(limits = c(offset0, upper_plot_time)) +
++   #        theme_bw())
++ 
++   # uncomment codeblock below to show full compartment trajectories
++   # print(calibrator |>
++   #        mp_optimized_spec("modified") |>
++   #        mp_simulator(time_steps, outputs = mp_state_vars(timevar_spec)) |>
++   #        mp_trajectory() |>
++   #        lim_dat() |>
++   #        ggplot(aes(time, value)) +
++   #        geom_line() +
++   #        facet_wrap(~matrix, scales = "free") +
++   #        theme_bw())
++ 
++ 
++   return(calibrator)
++ }
+> 
+> # ---------------------------------------
+> # run calibration and save
+> # ---------------------------------------
+> 
+> calibrator  <- calibrate_spec()
+outer mgc:  1943.821 
+outer mgc:  4166.839 
+outer mgc:  493.4017 
+outer mgc:  83.69587 
+outer mgc:  263.9433 
+outer mgc:  392.4788 
+outer mgc:  34.45747 
+outer mgc:  78.5783 
+outer mgc:  161.8973 
+outer mgc:  1466.735 
+outer mgc:  334.4055 
+outer mgc:  323.0128 
+outer mgc:  1277.719 
+outer mgc:  1201.599 
+outer mgc:  106.6041 
+outer mgc:  108.5653 
+outer mgc:  104.9667 
+outer mgc:  14.02614 
+outer mgc:  4.965926 
+outer mgc:  0.1746713 
+outer mgc:  0.0002833249 
+outer mgc:  3.906022e-10 
+outer mgc:  3.906022e-10 
+outer mgc:  897.8773 
+outer mgc:  906.3777 
+outer mgc:  1581.668 
+outer mgc:  1572.554 
+outer mgc:  33.26205 
+outer mgc:  33.30717 
+outer mgc:  382.9742 
+outer mgc:  382.3148 
+outer mgc:  1147.21 
+outer mgc:  1154.511 
+outer mgc:  769.212 
+outer mgc:  765.9896 
+outer mgc:  415.0363 
+outer mgc:  412.5895 
+outer mgc:  233.3643 
+outer mgc:  232.7424 
+outer mgc:  63.93188 
+outer mgc:  64.02554 
+outer mgc:  23.66494 
+outer mgc:  23.67338 
+outer mgc:  100.012 
+outer mgc:  100.108 
+outer mgc:  0.05994004 
+outer mgc:  0.06006004 
+> saveRDS(calibrator, "calibrator_opt.rds")
+> 
+> 

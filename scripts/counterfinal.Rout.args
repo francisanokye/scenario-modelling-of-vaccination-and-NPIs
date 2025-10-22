@@ -1,0 +1,2 @@
+rpcall("counterfinal.Rout .pipestar counterfinal.R calibrator_opt.rds fitsero.rds seroprevdata.rds params.rda ../data/serop_avgcase_data.csv")
+

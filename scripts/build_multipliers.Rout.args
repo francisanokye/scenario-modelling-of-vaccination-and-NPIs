@@ -1,0 +1,2 @@
+rpcall("build_multipliers.Rout .pipestar build_multipliers.R seroprevdata.rds params.rda calibrator_opt.rds fitsero.rds ../data/serop_avgcase_data.csv")
+
