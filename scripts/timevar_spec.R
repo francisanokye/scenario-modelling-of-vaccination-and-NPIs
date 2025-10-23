@@ -5,6 +5,9 @@ library(shellpipes)
 
 loadEnvironments()
 
+## Why do you need this function?
+## You only used this function once
+
 build_timevar_spec <- function() {
 
   # ---------------------------------------
@@ -83,5 +86,5 @@ build_timevar_spec <- function() {
 # ---------------------------------------
 
 timevar_spec  <- build_timevar_spec()
-saveRDS(timevar_spec, "timevar_spec.rds")
+rdsSave(timevar_spec)
 

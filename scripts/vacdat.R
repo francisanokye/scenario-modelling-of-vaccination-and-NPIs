@@ -25,6 +25,10 @@ gg <- (ggplot(nl,aes(week_end,value))
 
 #print(gg)
 
+## Can we have more informative names?
+## Code 2021-07-24 at the beginning like how we coded day0
+## We should minimize the amount of hard coding
+
 V2_init <- (nl
 	|> filter(type == "numtotal_fully")
 	|> filter(week_end == as.Date("2021-07-24"))

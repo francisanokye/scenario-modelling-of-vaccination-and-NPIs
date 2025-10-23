@@ -19,8 +19,8 @@ basis_cols <- 5
 tau_days <- 2.0
 
 # load saved inputs 
-calibrator   <- readRDS("calibrator_opt.rds")  
-seroprevdata <- readRDS("seroprevdata.rds")
+calibrator   <- rdsRead("calibrate")  
+seroprevdata <- rdsRead("seroprevdata")
 time_steps   <- max(seroprevdata$time)
 
 # initialize calibrated model spec with optimized parameters

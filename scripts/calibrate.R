@@ -1,6 +1,4 @@
 library(macpan2)
-library(shellpipes)
-rpcall("calibrate.Rout calibrate.R timevar_spec.rds seroprevdata.rds fitsero.rds params.rda")
 #library(conflicted)
 library(tidyverse)
 library(dplyr)
@@ -8,6 +6,8 @@ library(ggthemes)
 library(broom.mixed)
 library(zoo)
 library(ggplot2)
+library(shellpipes)
+rpcall("calibrate.Rout calibrate.R timevar_spec.rds seroprevdata.rds fitsero.rds params.rda")
 
 loadEnvironments()
 
@@ -22,9 +22,12 @@ if (packageVersion("macpan2") < "2.5.0") {
 # ---------------------------------------
 # Calibrate one scenario spec
 # ---------------------------------------
-calibrate_spec <- function(spec_file = "timevar_spec.rds",
-                           sero_file = "seroprevdata.rds",
-                           fitsero_file = "fitsero.rds",
+
+## Why do you create functions if you only use them ones?
+## Do not create functions unless you are using more than 3 times
+calibrate_spec <- function(spec_file = "timevar_spec",
+                           sero_file = "seroprevdata",
+                           fitsero_file = "fitsero",
                            spline_beta = TRUE,
                            upper_plot_time = 300) {
 
@@ -55,6 +58,9 @@ calibrate_spec <- function(spec_file = "timevar_spec.rds",
   # ---------------------------------------
   # Priors
   # ---------------------------------------
+
+## Too much hard coding
+
   get_prior <- function(trans) function(rng) {
     mp_normal((trans(rng[1]) + trans(rng[2])) / 2,
               log((trans(rng[2]) - trans(rng[1])) / (2 * 1.96)))
@@ -135,5 +141,6 @@ calibrate_spec <- function(spec_file = "timevar_spec.rds",
 # ---------------------------------------
 
 calibrator  <- calibrate_spec()
-saveRDS(calibrator, "calibrator_opt.rds")
+
+rdsSave(calibrator)
 

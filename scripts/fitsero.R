@@ -13,6 +13,11 @@ library(shellpipes)
 
 loadEnvironments()
 
+## This should be a different file
+## You are doing way too much data cleaning before fitting.
+## You can call this file seroclean.R or something like that 
+## Why do you need so many packages?
+
 # load data and format date column
 seroprevalence <- csvRead()
 seroprevalence <- seroprevalence |>

@@ -35,7 +35,7 @@ fitsero.Rout: fitsero.R ../data/raw_citf_data.csv params.rda
 calibrate.Rout: calibrate.R timevar_spec.rds seroprevdata.rds fitsero.rds params.rda
 	$(pipeRcall)
 	
-build_multipliers.Rout: build_multipliers.R seroprevdata.rds params.rda calibrator_opt.rds fitsero.rds ../data/serop_avgcase_data.csv params.rda
+build_multipliers.Rout: build_multipliers.R seroprevdata.rds params.rda calibrate.rds fitsero.rds ../data/serop_avgcase_data.csv params.rda
 	$(pipeR)
 	
 scenario_vax_scaled.Rout: scenario_vax_scaled.R calibrator_opt.rds fitsero.rds ../data/serop_avgcase_data.csv params.rda 
