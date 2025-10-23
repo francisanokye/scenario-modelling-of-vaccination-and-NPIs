@@ -39,7 +39,7 @@ beta_df <- calibrator |>
   filter(date >= date0, date <= date_end) |>
   select(date, beta_hat) 
 
-# simulate daily incidence as integers for presentation
+# scale daily c=vaccination rates
 set_vax <- function(spec, scale) {
   if (is.null(spec$default$double_vac_values_base))
     spec$default$double_vac_values_base  <- spec_fixed$default$double_vac_values
@@ -89,8 +89,7 @@ baseline <- purrr::imap_dfr(baseline_vax_scales, function(scl, vlbl) {
 ####################################### Counterfactual Scenarios ####################################### 
 
 
-############# -------------------- fit time_var_beta for each scenario ------------------
-# use the same basis size p as in the calibrated spec
+# fit time_var_beta for each scenario using the same basis size p as in the calibrated spec
 p <- length(spec_fixed$default$time_var_beta)
 nT <- nrow(multipliers)
 tgrid <- if (nT > 1) seq.int(from = offset0, to = time_steps, length.out = nT) else offset0
@@ -110,9 +109,7 @@ thetaALS2  <- fit_timevar_coef(multipliers$beta_cf_ALS2,  log_beta0, X)
 thetaALS4  <- fit_timevar_coef(multipliers$beta_cf_ALS4,  log_beta0, X)
 thetaNoALS <- fit_timevar_coef(multipliers$beta_cf_NoALS, log_beta0, X)
 
-# helpers 
-
-# clone spec and inject time_var_beta; optionally neutralize als/school multipliers
+# clone calibrated spec and update time_var_beta
 make_spec_with_theta <- function(theta) {
   stopifnot(length(theta) == length(spec_fixed$default$time_var_beta))
   spec_cf <- spec_fixed

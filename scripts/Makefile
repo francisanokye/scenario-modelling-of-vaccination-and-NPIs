@@ -41,7 +41,7 @@ build_multipliers.Rout: build_multipliers.R seroprevdata.rds params.rda calibrat
 scenario_vax_scaled.Rout: scenario_vax_scaled.R calibrator_opt.rds fitsero.rds ../data/serop_avgcase_data.csv params.rda 
 	$(pipeR)
 
-counterfinal.Rout: counterfinal.R calibrator_opt.rds fitsero.rds seroprevdata.rds params.rda multipliers.rds ../data/serop_avgcase_data.csv params.rda
+als_counterfactual.Rout: als_counterfactual.R calibrator_opt.rds fitsero.rds seroprevdata.rds params.rda multipliers.rds ../data/serop_avgcase_data.csv params.rda
 	$(pipeR)
 
 Ignore += makestuff
