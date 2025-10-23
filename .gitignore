@@ -10,6 +10,7 @@
 *.rds
 *.args
 *.oldfile
+*.pdf
 *.swp
 *.DS_Store
 *.pdf.icloud
