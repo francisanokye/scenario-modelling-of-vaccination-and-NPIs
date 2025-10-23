@@ -299,8 +299,7 @@ png("../figures/multiplier_heatmap.png", width = 3000, height = 2500, res = 300,
 p_heat_time
 dev.off()
 
-
-saveRDS(df_est, "multipliers.rds")
+rdsSave(df_est)
 
 
 
