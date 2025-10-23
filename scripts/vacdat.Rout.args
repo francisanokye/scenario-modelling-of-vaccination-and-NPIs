@@ -1,2 +1,0 @@
-rpcall("vacdat.Rout .pipestar vacdat.R ../data/vaccination-coverage-map.csv")
-

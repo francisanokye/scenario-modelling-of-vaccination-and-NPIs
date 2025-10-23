@@ -1,2 +1,0 @@
-rpcall("fitsero.Rout .pipestar fitsero.R ../data/raw_citf_data.csv params.rda")
-

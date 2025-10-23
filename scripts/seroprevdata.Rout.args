@@ -1,2 +1,0 @@
-rpcall("seroprevdata.Rout .pipestar seroprevdata.R params.rda ../data/raw_citf_data.csv")
-

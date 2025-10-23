@@ -41,14 +41,8 @@ build_multipliers.Rout: build_multipliers.R seroprevdata.rds params.rda calibrat
 scenario_vax_scaled.Rout: scenario_vax_scaled.R calibrator_opt.rds fitsero.rds ../data/serop_avgcase_data.csv params.rda 
 	$(pipeR)
 
-counterfinal.Rout: counterfinal.R calibrator_opt.rds fitsero.rds seroprevdata.rds params.rda ../data/serop_avgcase_data.csv params.rda
+counterfinal.Rout: counterfinal.R calibrator_opt.rds fitsero.rds seroprevdata.rds params.rda multipliers.rds ../data/serop_avgcase_data.csv params.rda
 	$(pipeR)
-
-counterfactuals.Rout: counterfactuals.R seroprevdata.rds params.rda calibrator_vax_scale_100.rds fitsero.rds ../data/serop_avgcase_data.csv params.rda
-	$(pipeR)
-	
-
-	
 
 Ignore += makestuff
 msrepo = https://github.com/dushoff

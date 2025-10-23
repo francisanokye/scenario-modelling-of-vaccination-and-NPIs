@@ -22,8 +22,10 @@ tau_days <- 2.0
 
 # load saved inputs 
 calibrator   <- readRDS("calibrator_opt.rds")  
+multipliers   <- readRDS("multipliers.rds")  
 seroprevdata <- readRDS("seroprevdata.rds")              
 time_steps   <- max(seroprevdata$time)
+
 
 # initialize calibrated model spec with optimized parameters
 spec_fixed <- mp_optimized_spec(calibrator, "modified")
@@ -60,7 +62,7 @@ simulate_series <- function(spec, scale) {
 }
 
 # ALS scenarios required
-als_cols <- c("als2_only", "als4_only", "no_als_only")
+als_cols <- c("ALS-2 Only", "ALS-4 Only", "No-ALS Only")
 als_fac  <- factor(als_cols, levels = als_cols)
 
 # use baseline rate (observed @ 100%) and replicate infection values across vaccination scales
@@ -75,101 +77,24 @@ baseline <- purrr::imap_dfr(baseline_vax_scales, function(scl, vlbl) {
       series = "observed"
     ) |>
     mutate(inc = as.integer(inc)) |>
-    tidyr::crossing(tibble(als_scen = als_fac)) |>   # replicate to all als columns
+    tidyr::crossing(tibble(als_scen = als_fac)) |>   
     dplyr::select(date, inc, vax, als_scen, series)
 }) |>
   arrange(als_scen)
 
-#print(ggplot(baseline) + geom_line(aes(date, inc)) + ggh4x::facet_grid2(rows = vars(vax), cols = vars(als_scen), axes = "all"))
-print(baseline)
+# print(ggplot(baseline) + geom_line(aes(date, inc)) + ggh4x::facet_grid2(rows = vars(vax), cols = vars(als_scen), axes = "all"))
+# print(baseline)
 
-
-quit()
 
 ####################################### Counterfactual Scenarios ####################################### 
 
-in_int  <- function(d, a, b) d >= as.Date(a) & d <= as.Date(b)
-
-base_df  <- tibble(date = beta_df$date, t = as.numeric(date - start_date) + 1)
-
-policy_df <- base_df %>%
-  mutate(
-    ALS = case_when(
-      in_int(date,"2021-12-15","2021-12-24") ~ "ALS2",
-      in_int(date,"2021-12-25","2022-01-03") ~ "ALS3",
-      in_int(date,"2022-01-04","2022-02-07") ~ "ALS4",
-      in_int(date,"2022-02-08","2022-03-14") ~ "ALS3",
-      in_int(date,"2022-03-15","2022-05-22") ~ "NoALS",
-      TRUE ~ "ALS2"
-    ),
-    school = if_else(in_int(date,"2021-12-20","2022-01-25"), "closed", "open")
-  )
- 
-# print(policy_df)
-
-
-# multipliers (rebased so no-als = 1)
-R_ALS4 <- 1.52; R_ALS3 <- 2.12; R_NoALS <- 2.32
-R_open <- 2.03; R_closed <- 1.44
-R_ALS2 <- sqrt(R_ALS3 * R_NoALS)
-
-m_als    <- c(ALS4 = R_ALS4/R_NoALS, ALS3 = R_ALS3/R_NoALS, ALS2 = R_ALS2/R_NoALS, NoALS = 1.00)
-m_school <- c(open = 1.00, closed = R_closed/R_open)
-
-# smooth categorical timelines to c¹ series
-smooth_step <- function(t, t0, tau = 2.0) plogis((as.numeric(t - t0))/tau)
-
-make_smooth_series <- function(date, lev, map, tau = tau_days) {
-  lev <- as.character(lev)
-  seg_idx    <- c(1L, which(lev[-1L] != lev[-length(lev)]) + 1L)
-  seg_dates  <- date[seg_idx]
-  seg_levels <- lev[seg_idx]
-  m <- rep(unname(map[seg_levels[1L]]), length(date))
-  if (length(seg_idx) >= 2L) {
-    for (j in 2:length(seg_idx)) {
-      t0 <- seg_dates[j]
-      m_target <- unname(map[seg_levels[j]])
-      s <- smooth_step(date, t0, tau)
-      m <- m*(1 - s) + m_target*s
-    }
-  }
-  m
-}
-
-# recover policy-neutral beta0_hat
-df_est <- policy_df %>%
-  left_join(beta_df, by = "date") %>%
-  mutate(
-    m_ALS_hat    = make_smooth_series(date, ALS, map = m_als, tau = tau_days),
-    m_school_hat = make_smooth_series(date, school, map = m_school, tau = tau_days),
-    m_obs_hat    = m_ALS_hat * m_school_hat,
-    beta0_hat    = beta_hat / pmax(m_obs_hat, 1e-8),
-    beta_recon   = beta0_hat * m_obs_hat
-  )
-
-stopifnot(!any(is.na(df_est$beta0_hat)))
-
-# ------------------- target curves for 3 counterfactuals -------------------
-# counterfactual betas (schools as observed; ALS constant throughout) ----
-k_ALS <- c(ALS2 = unname(m_als["ALS2"]),
-           ALS4 = unname(m_als["ALS4"]),
-           NoALS = unname(m_als["NoALS"]))  
-
-df_est_cf <- df_est |>
-  mutate(
-    date = date,
-    beta_cf_ALS2  = beta0_hat * (k_ALS["ALS2"]  * m_school_hat),
-    beta_cf_ALS4  = beta0_hat * (k_ALS["ALS4"]  * m_school_hat),
-    beta_cf_NoALS = beta0_hat * (k_ALS["NoALS"] * m_school_hat)
-  )
 
 ############# -------------------- fit time_var_beta for each scenario ------------------
 # use the same basis size p as in the calibrated spec
 p <- length(spec_fixed$default$time_var_beta)
-nT <- nrow(df_est)
+nT <- nrow(multipliers)
 tgrid <- if (nT > 1) seq.int(from = offset0, to = time_steps, length.out = nT) else offset0
 
-# note: splines::ns() has no 'degree' argument
 X <- splines::ns(tgrid, df = p, intercept = TRUE, Boundary.knots = c(offset0, time_steps))
 
 log_beta0 <- as.numeric(spec_fixed$default$log_beta)
@@ -181,19 +106,18 @@ fit_timevar_coef <- function(beta_cf, log_beta0, X, lambda_frac = 1e-6) {
   as.numeric(solve(XtX + lam * diag(ncol(X)), Xty))
 }
 
-thetaALS2  <- fit_timevar_coef(df_est_cf$beta_cf_ALS2,  log_beta0, X)
-thetaALS4  <- fit_timevar_coef(df_est_cf$beta_cf_ALS4,  log_beta0, X)
-thetaNoALS <- fit_timevar_coef(df_est_cf$beta_cf_NoALS, log_beta0, X)
+thetaALS2  <- fit_timevar_coef(multipliers$beta_cf_ALS2,  log_beta0, X)
+thetaALS4  <- fit_timevar_coef(multipliers$beta_cf_ALS4,  log_beta0, X)
+thetaNoALS <- fit_timevar_coef(multipliers$beta_cf_NoALS, log_beta0, X)
 
-
-# --- helpers (keep comments in lowercase) ----------------------------------
+# helpers 
 
 # clone spec and inject time_var_beta; optionally neutralize als/school multipliers
 make_spec_with_theta <- function(theta) {
   stopifnot(length(theta) == length(spec_fixed$default$time_var_beta))
   spec_cf <- spec_fixed
   spec_cf$default$time_var_beta <- as.numeric(theta)
-  spec_cf
+  return(spec_cf)
 }
 
 # simulate a dated beta_thing series from a spec (after theta injection)
@@ -207,39 +131,38 @@ simulate_incidence_int <- function(spec_cf, time_steps, date0, date_end, offset0
     dplyr::filter(date >= date0, date <= date_end)
 }
 
-
+# Test case with the  
 # inject theta and get beta_thing as a dated series
-spec_als_2 <- make_spec_with_theta(thetaALS2)
-
-als2_beta_df <- simulate_incidence_int(
-  spec_cf = spec_fixed,
-  time_steps = time_steps, date0 = date0, date_end = date_end,
-  offset0 = offset0, start_date = start_date
-)
-
-print(als2_beta_df)
-      
-print(ggplot(als2_beta_df) +
-        geom_line(aes(x = date, y = value)))
-
-quit()
-
+# default <- spec_fixed$default$time_var_beta
+# print(default)
+# spec_default <- make_spec_with_theta(default)
+# 
+# default_beta_df <- simulate_incidence_int(
+#   spec_cf = spec_default,
+#   time_steps = time_steps, date0 = date0, date_end = date_end,
+#   offset0 = offset0, start_date = start_date
+# )
+# 
+# print(default_beta_df)
+#       
+# print(ggplot(default_beta_df) +
+#         geom_line(aes(x = date, y = value)))
+# 
 ######################## Counterfactual: ALS-2 only with vax at 25%, 50% and 75% ######################## 
+spec_als_2 <- spec_fixed
+spec_als_2$default$time_var_beta <- as.numeric(thetaALS2)
 
-# spec_als_2 <- spec_fixed
-# spec_als_2$default$time_var_beta <- as.numeric(thetaALS2)
-
-# als2_counterfactual <- purrr::imap_dfr(vax_scales, function(scl, vlbl) {
-#   simulate_series(spec_als_2, scl) |>
-#     dplyr::mutate(
-#       vax = factor(vlbl, levels = levels(vax_fac)),
-#       series = "counterfactual"
-#     ) |>
-#     mutate(inc = as.integer(inc)) |>
-#     tidyr::crossing(tibble(als_scen = als_fac)) |>   # replicate to all als columns
-#     dplyr::select(date, inc, vax, als_scen, series)
-# }) |>
-#   arrange(als_scen)
+als2_counterfactual <- purrr::imap_dfr(vax_scales, function(scl, vlbl) {
+  simulate_series(spec_als_2, scl) |>
+    dplyr::mutate(
+      vax = factor(vlbl, levels = levels(vax_fac)),
+      series = "counterfactual"
+    ) |>
+    mutate(inc = as.integer(inc)) |>
+    tidyr::crossing(tibble(als_scen = als_fac)) |>   # replicate to all als columns
+    dplyr::select(date, inc, vax, als_scen, series)
+}) |>
+  arrange(als_scen)
 
 print(tail(als2_counterfactual))
 

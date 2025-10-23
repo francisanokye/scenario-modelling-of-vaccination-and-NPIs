@@ -85,7 +85,7 @@ make_smooth_series <- function(date, lev, map, tau = tau_days) {
 z <- qnorm(0.975)   
 
 df_est <- policy_df %>%
-  left_join(beta_df, by = "date") %>%        # <-- bring in beta_hat
+  left_join(beta_df, by = "date") %>%        
   mutate(
     m_ALS_hat    = make_smooth_series(date, ALS,    map = m_als,    tau = tau_days),
     m_school_hat = make_smooth_series(date, school, map = m_school, tau = tau_days),
@@ -259,11 +259,6 @@ sch_operation <- ggplot() +
 fig_methods <- pB_mult / p_beta_overlay / als_imp /sch_operation + plot_layout(heights = c(1, 1, 0.25, 0.25))
 
 print(fig_methods)
-
-png("../figures/multipliers.png", width = 3000, height = 2500, res = 300, bg = "white", type = "cairo")
-fig_methods
-dev.off()
-
 
 # time-varying multiplier heatmap 
 heatdf <- df_est %>%
