@@ -1,5 +1,57 @@
 library(macpan2)
+library(ggplot2)
+library(dplyr)
 library(shellpipes)
 rpcall("simulate.Rout simulate.R build_multipliers.rds calibrate.rds")
 
-## We want to create a new specs without splines and simulate the trajectories by inputing our own time series of beta_t
+## We want to create a new specs without splines and simulate
+## the trajectories by inputing our own time series of beta_t
+
+dat = rdsRead("build_multipliers")
+cal = rdsRead("calibrate")
+spec = mp_optimized_spec(cal, spec_structure = "modified")
+time_steps = cal$simulator$tmb_model$time_steps$time_steps
+
+obs_serop = data.frame(
+    time = cal$cal_spec$integers$obs_times_logit_serop
+  , value = cal$cal_spec$default$obs_logit_serop
+)
+calibrated_beta = (spec
+  |> mp_simulator(time_steps, "beta")
+  |> mp_trajectory()
+)
+
+if (interactive()) {
+  (calibrated_beta
+    |> ggplot()
+    + aes(time, value)
+    + geom_line()
+  )
+}
+
+new_beta = c(
+    calibrated_beta$value[1:149]
+  , dat$beta0_hat
+  , calibrated_beta$value[(1+149+nrow(dat)):time_steps]
+)
+stopifnot(length(new_beta) == time_steps)
+
+trajs = (spec
+  |> mp_tmb_delete(phase = "before", at = 23L)
+  |> mp_tmb_delete(phase = "before", at = 23L)
+  |> mp_tmb_insert(
+    default = list(timeseries_beta = new_beta)
+  )
+  |> mp_simulator(time_steps, "logit_serop")
+  |> mp_trajectory()
+)
+
+if (interactive()) {
+  (trajs
+    |> filter(matrix == "logit_serop")
+    |> ggplot()
+    + aes(time, plogis(value))
+    + geom_line()
+    + geom_point(data = obs_serop)
+  )
+}
