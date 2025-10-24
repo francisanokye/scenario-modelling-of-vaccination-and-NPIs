@@ -41,7 +41,7 @@ build_multipliers.Rout: build_multipliers.R seroprevdata.rds params.rda calibrat
 ## What I want here is a new macpan2 object where I can manually input betas without splines or anything.
 
 simulate.Rout: simulate.R build_multipliers.rds calibrate.rds
-	$(pipeR)
+	$(pipeRcall)
 
 scenario_vax_scaled.Rout: scenario_vax_scaled.R calibrator_opt.rds fitsero.rds ../data/serop_avgcase_data.csv params.rda 
 	$(pipeR)
