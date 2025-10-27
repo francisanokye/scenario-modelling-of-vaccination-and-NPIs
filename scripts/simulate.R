@@ -2,8 +2,6 @@ library(macpan2)
 library(ggplot2)
 library(dplyr)
 library(shellpipes)
-rpcall("policy_neutral.simulate.Rout simulate.R policy_neutral.rds build_multipliers.rds calibrate.rds")
-rpcall("base_beta.simulate.Rout simulate.R base_beta.rds build_multipliers.rds calibrate.rds")
 
 ## We want to create a new specs without splines and simulate
 ## the trajectories by inputing our own time series of beta_t
