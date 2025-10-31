@@ -46,6 +46,13 @@ base_beta.Rout: base_beta.R build_multipliers.rds calibrate.rds
 
 policy_neutral.Rout: policy_neutral.R build_multipliers.rds calibrate.rds
 	$(pipeR)
+	
+beta_als2.Rout: beta_als2.R build_multipliers.rds calibrate.rds
+	$(pipeR)
+
+beta_als4.Rout: beta_als4.R build_multipliers.rds calibrate.rds
+	$(pipeR)
+
 
 ## simulate whatever scenarios you want
 # base_beta.simulate.Rout: simulate.R
@@ -53,12 +60,12 @@ policy_neutral.Rout: policy_neutral.R build_multipliers.rds calibrate.rds
 %.simulate.Rout: simulate.R %.rds build_multipliers.rds calibrate.rds
 	$(pipeRcall)
 
-scenario_vax_scaled.Rout: scenario_vax_scaled.R calibrator_opt.rds fitsero.rds ../data/serop_avgcase_data.csv params.rda 
+vax_scenarios.Rout: vax_scenarios.R calibrate.rds seroprevdata.rds fitsero.rds ../data/serop_avgcase_data.csv params.rda 
 	$(pipeR)
-
-als_counterfactual.Rout: als_counterfactual.R calibrator_opt.rds fitsero.rds seroprevdata.rds params.rda multipliers.rds ../data/serop_avgcase_data.csv params.rda
+	
+als_counterfactual.Rout: als_counterfactual.R calibrate.rds beta_als2.rds beta_als4.rds policy_neutral.rds build_multipliers.rds fitsero.rds seroprevdata.rds params.rda  ../data/serop_avgcase_data.csv params.rda
 	$(pipeR)
-
+	
 Ignore += makestuff
 msrepo = https://github.com/dushoff
 
