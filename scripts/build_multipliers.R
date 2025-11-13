@@ -155,12 +155,14 @@ pB_mult <- ggplot(mult_long, aes(date, value, color = series)) +
 
 p_beta_overlay <- ggplot(df_est, aes(date)) +
   # map to category keys that exist in scale_fill_manual()
-  geom_ribbon(aes(ymin = beta_hat_l,  ymax = beta_hat_u,  fill = "estimated"),       alpha = 0.25, color = NA) +
-  geom_ribbon(aes(ymin = beta0_hat_l, ymax = beta0_hat_u, fill = "policy-neutral"),  alpha = 0.25, color = NA) +
-  geom_line(aes(y = beta_hat,  color = "estimated (β̂(t))"),      linewidth = 2) +
-  geom_line(aes(y = beta0_hat, color = "policy-neutral β₀(t)"),   linewidth = 1) +
-  labs(title = "Estimated transmission rate vs Policy-neutral transmission",x = NULL, y = "Transmission rate") +
-  scale_color_manual(values = c("estimated (β̂(t))" = "red","policy-neutral β₀(t)" = "blue"), name = NULL) +
+  #geom_ribbon(aes(ymin = beta_hat_l,  ymax = beta_hat_u,  fill = "estimated"),       alpha = 0.25, color = NA) +
+  #geom_ribbon(aes(ymin = beta0_hat_l, ymax = beta0_hat_u, fill = "policy-neutral"),  alpha = 0.25, color = NA) +
+  geom_line(aes(y = beta_hat,  color = "estimated"),      linewidth = 1.5) +
+  geom_line(aes(y = beta0_hat, color = "policy-neutral"),   linewidth = 1) +
+  geom_line(aes(y = beta_cf_ALS2, color = "beta2"), linewidth = 1) +
+  geom_line(aes(y = beta_cf_ALS4, color = "beta4"),   linewidth = 1) +
+  labs(title = "Estimated transmission rates vs Policy-neutral transmission",x = NULL, y = "Transmission rate") +
+  scale_color_manual(values = c("estimated" = "red","policy-neutral" = "#0072B2", "beta2" = "#E69F00", "beta4" = "#009E73"), name = NULL) +
   scale_fill_manual(values = c("estimated" = "red", "policy-neutral" = "blue"),guide = "none") +
   scale_x_date(date_breaks = "2 weeks", date_labels = "%b %d", expand = c(0, 0)) +
   geom_vline(data = als_change_dates,    aes(xintercept = date), linetype="dashed",  linewidth=1) +

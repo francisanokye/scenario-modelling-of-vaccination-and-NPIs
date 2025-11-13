@@ -38,9 +38,6 @@ calibrate.Rout: calibrate.R timevar_spec.rds seroprevdata.rds fitsero.rds params
 build_multipliers.Rout: build_multipliers.R seroprevdata.rds params.rda calibrate.rds fitsero.rds ../data/serop_avgcase_data.csv params.rda
 	$(pipeR)
 
-## What I want here is a new macpan2 object where I can manually input betas without splines or anything.
-
-## Code to create different beta_t
 base_beta.Rout: base_beta.R build_multipliers.rds calibrate.rds
 	$(pipeR)
 
@@ -52,20 +49,43 @@ beta_als2.Rout: beta_als2.R build_multipliers.rds calibrate.rds
 
 beta_als4.Rout: beta_als4.R build_multipliers.rds calibrate.rds
 	$(pipeR)
+	
+switch_als4_als2.Rout: switch_als4_als2.R build_multipliers.rds calibrate.rds
+	$(pipeR)
 
-
-## simulate whatever scenarios you want
-# base_beta.simulate.Rout: simulate.R
-# policy_neutral.simulate.Rout: simulate.R
 %.simulate.Rout: simulate.R %.rds build_multipliers.rds calibrate.rds
 	$(pipeRcall)
 
 vax_scenarios.Rout: vax_scenarios.R calibrate.rds seroprevdata.rds fitsero.rds ../data/serop_avgcase_data.csv params.rda 
 	$(pipeR)
-	
+
+#  Strictest ALS before relaxation at varying vaccination rates
+switch_als42_counterfactual.Rout: switch_als42_counterfactual.R calibrate.rds switch_als4_als2.rds build_multipliers.rds fitsero.rds seroprevdata.rds params.rda  ../data/serop_avgcase_data.csv params.rda
+	$(pipeR)
+
+# Earlier booster rollout 
+# early_boosters.Rout: early_boosters.R calibrate.rds seroprevdata.rds fitsero.rds ../data/serop_avgcase_data.csv params.rda 
+#	$(pipeR)
+
+# Combined scenarios (varying vaccination rates and alternate over ALS)
 als_counterfactual.Rout: als_counterfactual.R calibrate.rds beta_als2.rds beta_als4.rds policy_neutral.rds build_multipliers.rds fitsero.rds seroprevdata.rds params.rda  ../data/serop_avgcase_data.csv params.rda
 	$(pipeR)
+
+# 100% Vaccination with Different ALS (compared to baseline)
+als_vax100.Rout: als_vax100.R calibrate.rds base_beta.rds beta_als2.rds beta_als4.rds policy_neutral.rds build_multipliers.rds fitsero.rds seroprevdata.rds params.rda  ../data/serop_avgcase_data.csv params.rda
+	$(pipeR)
+
+# Earlier booster rollout 
+early_booster_als.Rout: early_booster_als.R calibrate.rds base_beta.rds beta_als2.rds beta_als4.rds policy_neutral.rds build_multipliers.rds fitsero.rds seroprevdata.rds params.rda  ../data/serop_avgcase_data.csv params.rda
+	$(pipeR)
+
+# Early booster vaccination, with/without restrictions & varying vaccination rates 
+early_vax_als.Rout: early_vax_als.R calibrate.rds base_beta.rds policy_neutral.rds build_multipliers.rds fitsero.rds seroprevdata.rds params.rda  ../data/serop_avgcase_data.csv params.rda
+	$(pipeR)
 	
+# init_cond_scenario.Rout: init_cond_scenario.R calibrate.rds seroprevdata.rds fitsero.rds ../data/serop_avgcase_data.csv params.rda 
+#	$(pipeR)
+
 Ignore += makestuff
 msrepo = https://github.com/dushoff
 

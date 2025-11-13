@@ -71,8 +71,10 @@ calibrate_spec <- function(spec_file = "timevar_spec",
     time_var_beta = mp_normal(0, log(1)),
     log_gamma_a   = get_prior(log)(prior_range$gamma_a),
     log_gamma_i   = get_prior(log)(prior_range$gamma_i),
-    logit_kappa2  = get_prior(qlogis)(prior_range$kappa2),
-    logit_kappa3  = get_prior(qlogis)(prior_range$kappa3),
+    logit_kappa2P  = get_prior(qlogis)(prior_range$kappa2P),
+    logit_kappa2W  = get_prior(qlogis)(prior_range$kappa2W),
+    logit_kappa3P  = get_prior(qlogis)(prior_range$kappa3P),
+    logit_kappa3W  = get_prior(qlogis)(prior_range$kappa3W),
     log_sigma     = get_prior(log)(prior_range$sigma)
   )
 
@@ -111,26 +113,26 @@ calibrate_spec <- function(spec_file = "timevar_spec",
   lim_dat <- \(x) dplyr::filter(x, time <= upper_plot_time)
 
   # Observed vs fitted incidence
-  # print(ggplot() +
-  #        geom_point(aes(time, value), data = lim_dat(seroprevdata)) +
-  #        geom_point(aes(time, value), data = lim_dat(fitserodata)) +
-  #        geom_line(aes(time, value), linewidth = 1, data = lim_dat(sims)) +
-  #        geom_ribbon(aes(x = time, ymin = conf.low, ymax = conf.high),alpha = 0.4, data = lim_dat(sims)) +
-  #        facet_wrap(~matrix, scales = "free", ncol = 1) +
-  #        scale_y_continuous(name = "") +
-  #        scale_x_continuous(limits = c(offset0, upper_plot_time)) +
-  #        theme_bw())
+  print(ggplot() +
+         geom_point(aes(time, value), data = lim_dat(seroprevdata)) +
+         geom_point(aes(time, value), data = lim_dat(fitserodata)) +
+         geom_line(aes(time, value), linewidth = 1, data = lim_dat(sims)) +
+         geom_ribbon(aes(x = time, ymin = conf.low, ymax = conf.high),alpha = 0.4, data = lim_dat(sims)) +
+         facet_wrap(~matrix, scales = "free", ncol = 1) +
+         scale_y_continuous(name = "") +
+         scale_x_continuous(limits = c(offset0, upper_plot_time)) +
+         theme_bw())
 
   # uncomment codeblock below to show full compartment trajectories
-  # print(calibrator |>
-  #        mp_optimized_spec("modified") |>
-  #        mp_simulator(time_steps, outputs = mp_state_vars(timevar_spec)) |>
-  #        mp_trajectory() |>
-  #        lim_dat() |>
-  #        ggplot(aes(time, value)) +
-  #        geom_line() +
-  #        facet_wrap(~matrix, scales = "free") +
-  #        theme_bw())
+  print(calibrator |>
+         mp_optimized_spec("modified") |>
+         mp_simulator(time_steps, outputs = mp_state_vars(timevar_spec)) |>
+         mp_trajectory() |>
+         lim_dat() |>
+         ggplot(aes(time, value)) +
+         geom_line() +
+         facet_wrap(~matrix, scales = "free") +
+         theme_bw())
 
 
   return(calibrator)
