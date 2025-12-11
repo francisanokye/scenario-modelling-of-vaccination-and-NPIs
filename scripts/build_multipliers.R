@@ -58,7 +58,8 @@ policy_df <- base_df |>
   )
 
 # multipliers (rebased so no-als = 1)
-R_ALS4 <- 1.52; R_ALS3 <- 2.12; R_NoALS <- 2.32; R_open <- 2.03; R_closed <- 1.44; R_ALS2 <- sqrt(R_ALS3 * R_NoALS)
+# R_ALS4 <- 1.52; R_ALS3 <- 2.12; R_NoALS <- 2.32; R_open <- 2.03; R_closed <- 1.44; R_ALS2 <- sqrt(R_ALS3 * R_NoALS)
+R_ALS4 <- 1.91; R_ALS3 <- 2.03; R_NoALS <- 2.26; R_open <- 2.17; R_closed <- 1.49; R_ALS2 <- sqrt(R_ALS3 * R_NoALS)
 m_als    <- c(ALS4 = R_ALS4/R_NoALS, ALS3 = R_ALS3/R_NoALS, ALS2 = R_ALS2/R_NoALS, NoALS = 1.00)
 m_school <- c(open = 1.00, closed = R_closed/R_open)
 
@@ -107,12 +108,21 @@ k_ALS <- c(ALS2 = unname(m_als["ALS2"]),
            ALS4 = unname(m_als["ALS4"]),
            NoALS = unname(m_als["NoALS"]))  
 
-df_est <- df_est |>
-    dplyr::mutate(
-    date = date,
-    beta_cf_ALS2  = beta0_hat * (k_ALS["ALS2"]  * m_school_hat),
-    beta_cf_ALS4  = beta0_hat * (k_ALS["ALS4"]  * m_school_hat),
-    beta_cf_NoALS = beta0_hat * (k_ALS["NoALS"] * m_school_hat)
+# find first date with No-ALS in your policy schedule and enforce across when noals starts
+noals_start <- df_est %>%
+  dplyr::filter(ALS == "NoALS") %>%
+  summarise(start = min(date)+1) %>%
+  pull(start)
+
+df_est <- df_est %>%
+  dplyr::mutate(
+    m_scen_ALS2  = if_else(date < noals_start + 1, k_ALS["ALS2"] * m_school_hat, m_school_hat),
+    m_scen_ALS4  = if_else(date < noals_start,k_ALS["ALS4"] * m_school_hat, m_school_hat),
+    m_scen_NoALS = k_ALS["NoALS"] * m_school_hat, 
+    
+    beta_cf_ALS2  = beta0_hat * m_scen_ALS2,
+    beta_cf_ALS4  = beta0_hat * m_scen_ALS4,
+    beta_cf_NoALS = beta0_hat * m_scen_NoALS
   )
 
 als_change_dates <- df_est |>
@@ -150,20 +160,17 @@ pB_mult <- ggplot(mult_long, aes(date, value, color = series)) +
     legend.background = element_rect(color = NA),
     legend.margin = margin(0, 0, 0, 0),
     plot.background = element_blank(),
-    legend.position = c(0.8, 0.2)
+    legend.position = c(0.85, 0.5)
   ) 
 
 p_beta_overlay <- ggplot(df_est, aes(date)) +
-  # map to category keys that exist in scale_fill_manual()
-  #geom_ribbon(aes(ymin = beta_hat_l,  ymax = beta_hat_u,  fill = "estimated"),       alpha = 0.25, color = NA) +
-  #geom_ribbon(aes(ymin = beta0_hat_l, ymax = beta0_hat_u, fill = "policy-neutral"),  alpha = 0.25, color = NA) +
-  geom_line(aes(y = beta_hat,  color = "estimated"),      linewidth = 1.5) +
-  geom_line(aes(y = beta0_hat, color = "policy-neutral"),   linewidth = 1) +
-  geom_line(aes(y = beta_cf_ALS2, color = "beta2"), linewidth = 1) +
-  geom_line(aes(y = beta_cf_ALS4, color = "beta4"),   linewidth = 1) +
-  labs(title = "Estimated transmission rates vs Policy-neutral transmission",x = NULL, y = "Transmission rate") +
-  scale_color_manual(values = c("estimated" = "red","policy-neutral" = "#0072B2", "beta2" = "#E69F00", "beta4" = "#009E73"), name = NULL) +
-  scale_fill_manual(values = c("estimated" = "red", "policy-neutral" = "blue"),guide = "none") +
+  geom_line(aes(y = beta_hat,  color = "Estimated (Implemented)"),      linewidth = 1.5) +
+  geom_line(aes(y = beta0_hat, color = "No Policy"),   linewidth = 1) +
+  geom_line(aes(y = beta_cf_ALS2, color = "Beta2"), linewidth = 1) +
+  geom_line(aes(y = beta_cf_ALS4, color = "Beta4"),   linewidth = 1) +
+  labs(title = "Estimated transmission rates vs No policy transmission",x = NULL, y = "Transmission rate") +
+  scale_color_manual(values = c("Estimated (Implemented)" = "red","No Policy" = "#0072B2", "Beta2" = "#E69F00", "Beta4" = "#009E73"), name = NULL) +
+  scale_fill_manual(values = c("Estimated (Implemented)" = "red", "No Policy" = "blue"),guide = "none") +
   scale_x_date(date_breaks = "2 weeks", date_labels = "%b %d", expand = c(0, 0)) +
   geom_vline(data = als_change_dates,    aes(xintercept = date), linetype="dashed",  linewidth=1) +
   geom_vline(data = school_change_dates, aes(xintercept = date), linetype="dotdash", linewidth=1, color="brown")+
@@ -181,7 +188,7 @@ p_beta_overlay <- ggplot(df_est, aes(date)) +
     legend.background = element_rect(color = NA),
     legend.margin     = margin(0, 0, 0, 0),
     plot.background   = element_blank(),
-    legend.position   = c(0.7, 0.2),
+    legend.position   = c(0.9, 0.25),
     plot.margin  = margin(0, 6, -10, 6)
   )
 
@@ -266,14 +273,14 @@ print(fig_methods)
 heatdf <- df_est %>%
   select(date, m_ALS_hat, m_school_hat, m_obs_hat) %>%
   pivot_longer(-date, names_to = "component", values_to = "multiplier") %>%
-  mutate(component = recode(component, m_ALS_hat    = "ALS",m_school_hat = "School", m_obs_hat    = "Combined"))
+  mutate(component = recode(component, m_ALS_hat = "ALS",m_school_hat = "School", m_obs_hat = "Combined"))
 
 p_heat_time <- ggplot(heatdf, aes(date, component, fill = multiplier)) +
   geom_tile(height = 0.8) +
   scale_fill_viridis_c(name = "", option = "C") +
   labs(title = "Policy effect multipliers over time", x = NULL, y = NULL) +
-  geom_vline(data=als_change_dates, aes(xintercept=as.numeric(date)), linetype="dashed", linewidth=1) +
-  geom_vline(data=school_change_dates, aes(xintercept=as.numeric(date)), linetype="dotdash", linewidth=1, color="brown") +
+  geom_vline(data=als_change_dates, aes(xintercept = as.numeric(date)), linetype = "dashed", linewidth = 1) +
+  geom_vline(data=school_change_dates, aes(xintercept = as.numeric(date)), linetype = "dotdash", linewidth = 1, color = "brown") +
   scale_x_date(date_breaks = "2 weeks", date_labels = "%b %d", expand = c(0,0)) +
   theme_clean()+
   theme(
@@ -293,7 +300,7 @@ p_heat_time <- ggplot(heatdf, aes(date, component, fill = multiplier)) +
 
 print(p_heat_time)
 
-png("../figures/multipliers.png", width = 3000, height = 2500, res = 300, bg = "white", type = "cairo")
+png("../figures/multipliers.png", width = 4000, height = 2000, res = 300, bg = "white", type = "cairo")
 fig_methods
 dev.off()
 

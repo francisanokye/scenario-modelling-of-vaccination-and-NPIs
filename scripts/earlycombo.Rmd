@@ -1,0 +1,252 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+
+```{r}
+library(ggplot2)
+library(dplyr)
+library(scales)
+library(ggthemes)
+
+combo <- read.csv("~/Documents/scenario-modelling-of-vaccination-and-NPIs/output/early_vax_als1.csv")
+early <- read.csv("~/Documents/scenario-modelling-of-vaccination-and-NPIs/output/early_vax_als_bars.csv")
+merged <- rbind(early, combo)
+
+# Prepare factors consistently
+merged <- merged %>%
+  mutate(
+    type = factor(type, levels = c("normal", "early"), labels = c("Booster schedule", "Early boosters (shifted 28 days)")),
+    period = factor(period, levels = c("Up to March 14, 2022", "March 15 - Nov 30, 2022")),
+    vaccination = factor(vaccination, levels = c("0%","25%", "50%", "75%", "100%")),
+    als_scen = factor(als_scen, levels = c("No-ALS Only", "ALS-2 Only", "Implemented ALS", "ALS-4 Only"))
+    )
+
+# grouped-dodge for side-by-side bars
+pd <- position_dodge2(width = 0.9, preserve = "single")
+
+p_grouped_stacked <- ggplot(merged,
+  aes(x = vaccination,y = total_infections,fill = period,colour = type,group = interaction(type, period))) +
+  geom_col(width = 0.85, position = pd, linewidth = 1) +
+  facet_wrap(~ als_scen, nrow = 1, scales = "fixed") +
+  scale_fill_manual(values = c("Up to March 14, 2022" = "green","March 15 - Nov 30, 2022" = "yellow"), name = "") +
+  scale_color_manual(values = c("Observed booster schedule" = "red", "Early boosters (shifted 28 days)" = "blue"),name = "") +
+  scale_y_continuous(labels = comma) +
+  labs(
+    title = "Comparison of cumulative infections under combined ALS and vaccination and early booster dose scenarios",
+    x = "Vaccination rate (of observed coverage)",
+    y = "Cumulative estimated infections"
+  ) +
+  
+  theme_clean() +
+  theme(
+    axis.text.x      = element_text(size = 18),
+    axis.text.y      = element_text(size = 18),
+    axis.title.x     = element_text(size = 18),
+    axis.title.y     = element_text(size = 18),
+    plot.title       = element_text(size = 20, face = "plain", hjust = 0.5),
+    plot.subtitle    = element_text(size = 15, hjust = 0.5),
+    strip.text       = element_text(size = 17, face = "plain"),
+    legend.position  = "top",
+    legend.text      = element_text(size = 15),
+    legend.background= element_blank(),
+    legend.title     = element_text(size = 15),
+    panel.spacing.x  = unit(1.5, "cm")
+  )
+
+
+
+
+
+png("../figures/grouped_stacked.png",width = 4500, height = 2000, res = 300,bg = "white", type = "cairo")
+print(p_grouped_stacked)
+dev.off()
+```
+
+```{r}
+library(readr)
+early_vax_als_summary <- read_csv("~/Documents/scenario-modelling-of-vaccination-and-NPIs/output/early_vax_als_summary.csv")
+View(early_vax_als_summary)
+```
+
+```{r fig.width=25, fig.height=7}
+library(magick)
+
+# Read images
+img1 <- image_read("~/Documents/scenario-modelling-of-vaccination-and-NPIs/figures/vax_scenario1.png")
+img2 <- image_read("~/Documents/scenario-modelling-of-vaccination-and-NPIs/figures/vax_scenarios_bar.png")
+
+# Get width of img1
+w1 <- image_info(img1)$width
+w2 <- image_info(img2)$width
+
+# If img2 is narrower, pad it equally left & right
+if (w2 < w1) {
+  pad <- (w1 - w2) / 2
+  img2 <- image_extent(
+    img2,
+    paste0(w1, "x", image_info(img2)$height),
+    gravity = "center",
+    color = "white"
+  )
+}
+
+# Combine vertically
+combined_magick_vert <- image_append(c(img1, img2), stack = TRUE)
+
+# Save output
+image_write(
+  combined_magick_vert,
+  "~/Documents/scenario-modelling-of-vaccination-and-NPIs/figures/vaxscenarios.png"
+)
+
+```
+
+
+
+
+
+
+```{r}
+suppressPackageStartupMessages({
+  library(dplyr)
+  library(tidyr)
+  library(ggplot2)
+  library(readr)
+  library(forcats)
+  library(ggthemes)
+  library(scales)
+  library(grid)   # for unit()
+})
+
+options(scipen = 9999999)
+
+## ---------------------------- paths ----------------------------------------
+
+base_dir      <- "~/Documents/scenario-modelling-of-vaccination-and-NPIs/output"
+baseline_file <- file.path(base_dir, "comb_vax_als_bars.csv")       # baseline rollout
+early_file    <- file.path(base_dir, "early_boosters_bars.csv")     # early boosters
+
+## ------------------------- load & clean ------------------------------------
+
+als_vax_raw <- bind_rows(
+  read_csv(baseline_file, show_col_types = FALSE),
+  read_csv(early_file,    show_col_types = FALSE)
+)
+
+# standardize period labels
+als_vax_clean <- als_vax_raw |>
+  mutate(
+    period = recode(
+      period,
+      "Up to March 14, 2022"     = "Dec 15–Mar 14",
+      "March 15 – Nov 30, 2022"  = "Mar 15–Nov 30",
+      "March 15 - Nov 30, 2022"  = "Mar 15–Nov 30"
+    )
+  )
+
+## --------------------- normal vs early side by side ------------------------
+
+als_vax_wide <- als_vax_clean |>
+  select(als_scen, vaccination, period, type, total_infections) |>
+  pivot_wider(
+    names_from  = type,               # expects columns "normal" and "early"
+    values_from = total_infections
+  )
+
+# difference > 0 means more infections under baseline than early boosters
+als_vax_wide <- als_vax_wide |>
+  mutate(diff = normal - early)
+
+## ------------------- period-specific and total diffs -----------------------
+
+period_diffs <- als_vax_wide |>
+  select(als_scen, vaccination, period, diff)
+
+total_diffs <- period_diffs |>
+  group_by(als_scen, vaccination) |>
+  summarise(diff = sum(diff, na.rm = TRUE), .groups = "drop") |>
+  mutate(period = "Total (Dec 15–Nov 30)")
+
+als_levels <- c("No-ALS Only", "ALS-2 Only", "Implemented ALS", "ALS-4 Only")
+
+plot_df <- bind_rows(period_diffs, total_diffs) |>
+  mutate(
+    period = factor(
+      period,
+      levels = c("Dec 15–Mar 14",
+                 "Mar 15–Nov 30",
+                 "Total (Dec 15–Nov 30)")
+    ),
+    vaccination = factor(
+      vaccination,
+      levels = c("0%", "25%", "50%", "75%", "100%")
+    ),
+    als_scen = factor(als_scen, levels = als_levels)
+  )
+
+## ----------------------------- colours -------------------------------------
+
+# okabe–ito style: colourblind-safe and high contrast
+period_palette <- c(
+  "Dec 15–Mar 14"         = "#0072B2",  # blue
+  "Mar 15–Nov 30"         = "#009E73",  # green
+  "Total (Dec 15–Nov 30)" = "#D55E00"   # vermilion
+)
+
+## ----------------------------- plot ----------------------------------------
+
+p <- ggplot(
+  plot_df,
+  aes(x = vaccination, y = diff, fill = period)
+) +
+  geom_hline(yintercept = 0, linewidth = 0.4, colour = "grey40") +
+  geom_col(
+    position = position_dodge(width = 0.75),
+    width    = 0.6
+  ) +
+  facet_wrap(~ als_scen, nrow = 2, scales = "free") +
+  scale_fill_manual(values = period_palette, name = "Period") +
+  scale_y_continuous(labels = comma) +
+  labs(
+    x     = "Vaccination coverage scenario",
+    y     = expression(Delta * " infections (baseline - early boosters)"),
+    title = "Difference in cumulative Omicron infections:\nbaseline vs. early booster rollout"
+  ) +
+  theme_clean() +
+  theme(
+    axis.text.x      = element_text(size = 16, angle = 0, hjust = 0.5),
+    axis.text.y      = element_text(size = 16),
+    axis.title.x     = element_text(size = 18),
+    axis.title.y     = element_text(size = 18),
+    plot.title       = element_text(size = 20, hjust = 0.5, face = "plain"),
+    strip.text       = element_text(size = 18, face = "plain"),
+    legend.position  = "top",
+    legend.direction = "horizontal",
+    legend.box       = "horizontal",
+    legend.text      = element_text(size = 16),
+    legend.title     = element_blank(),
+    legend.background= element_blank(),
+    plot.background  = element_blank(),
+    panel.spacing.x  = unit(1.2, "cm"),
+    panel.spacing.y  = unit(0.8, "cm")
+  )
+
+print(p)
+
+## ---------------------------- export ---------------------------------------
+
+png(
+  "../figures/als_vax_early_total_diffs.png",
+  width  = 3200,
+  height = 1800,
+  res    = 300,
+  bg     = "white",
+  type   = "cairo"
+)
+print(p)
+dev.off()
+
+```
+

@@ -17,6 +17,9 @@ Sources += $(wildcard *.R)
 vacdat.Rout: vacdat.R ../data/vaccination-coverage-map.csv 
 	$(pipeR)
 
+can_vac.Rout: can_vac.R ../data/vaccination-coverage-map.csv 
+	$(pipeR)
+	
 params.Rout: params.R vacdat.rda
 	$(pipeR)
 
@@ -29,7 +32,7 @@ timevar_spec.Rout: timevar_spec.R flows.rda vacdat.rda params.rda
 seroprevdata.Rout: seroprevdata.R params.rda ../data/raw_citf_data.csv    
 	$(pipeR)
 
-fitsero.Rout: fitsero.R ../data/raw_citf_data.csv params.rda
+fitsero.Rout: fitsero.R seroprevdata.rds ../data/raw_citf_data.csv params.rda
 	$(pipeR)
 
 calibrate.Rout: calibrate.R timevar_spec.rds seroprevdata.rds fitsero.rds params.rda
@@ -55,35 +58,32 @@ switch_als4_als2.Rout: switch_als4_als2.R build_multipliers.rds calibrate.rds
 
 %.simulate.Rout: simulate.R %.rds build_multipliers.rds calibrate.rds
 	$(pipeRcall)
-
-vax_scenarios.Rout: vax_scenarios.R calibrate.rds seroprevdata.rds fitsero.rds ../data/serop_avgcase_data.csv params.rda 
+# alternate over ALS with no vaccination 	
+als_novax_scenario.Rout: als_novax_scenario.R calibrate.rds base_beta.rds beta_als2.rds beta_als4.rds policy_neutral.rds build_multipliers.rds seroprevdata.rds fitsero.rds ../data/serop_avgcase_data.csv params.rda 
 	$(pipeR)
 
-#  Strictest ALS before relaxation at varying vaccination rates
-switch_als42_counterfactual.Rout: switch_als42_counterfactual.R calibrate.rds switch_als4_als2.rds build_multipliers.rds fitsero.rds seroprevdata.rds params.rda  ../data/serop_avgcase_data.csv params.rda
+# alternate over varying vaccination rates with no ALS 	
+vax_scenarios.Rout: vax_scenarios.R calibrate.rds policy_neutral.rds build_multipliers.rds fitsero.rds seroprevdata.rds params.rda  ../data/serop_avgcase_data.csv params.rda 
 	$(pipeR)
-
-# Earlier booster rollout 
-# early_boosters.Rout: early_boosters.R calibrate.rds seroprevdata.rds fitsero.rds ../data/serop_avgcase_data.csv params.rda 
-#	$(pipeR)
 
 # Combined scenarios (varying vaccination rates and alternate over ALS)
-als_counterfactual.Rout: als_counterfactual.R calibrate.rds beta_als2.rds beta_als4.rds policy_neutral.rds build_multipliers.rds fitsero.rds seroprevdata.rds params.rda  ../data/serop_avgcase_data.csv params.rda
-	$(pipeR)
-
-# 100% Vaccination with Different ALS (compared to baseline)
-als_vax100.Rout: als_vax100.R calibrate.rds base_beta.rds beta_als2.rds beta_als4.rds policy_neutral.rds build_multipliers.rds fitsero.rds seroprevdata.rds params.rda  ../data/serop_avgcase_data.csv params.rda
-	$(pipeR)
-
-# Earlier booster rollout 
-early_booster_als.Rout: early_booster_als.R calibrate.rds base_beta.rds beta_als2.rds beta_als4.rds policy_neutral.rds build_multipliers.rds fitsero.rds seroprevdata.rds params.rda  ../data/serop_avgcase_data.csv params.rda
+comb_vax_als_scen.Rout: comb_vax_als_scen.R calibrate.rds base_beta.rds beta_als2.rds beta_als4.rds policy_neutral.rds build_multipliers.rds fitsero.rds seroprevdata.rds params.rda  ../data/serop_avgcase_data.csv params.rda
 	$(pipeR)
 
 # Early booster vaccination, with/without restrictions & varying vaccination rates 
-early_vax_als.Rout: early_vax_als.R calibrate.rds base_beta.rds policy_neutral.rds build_multipliers.rds fitsero.rds seroprevdata.rds params.rda  ../data/serop_avgcase_data.csv params.rda
+early_vax_als.Rout: early_vax_als.R calibrate.rds base_beta.rds beta_als2.rds beta_als4.rds policy_neutral.rds build_multipliers.rds fitsero.rds seroprevdata.rds params.rda  ../data/serop_avgcase_data.csv params.rda
+	$(pipeR)
+
+# Combined scenarios (varying vaccination rates and alternate over ALS)
+canada_vax_scen.Rout: canada_vax_scen.R calibrate.rds base_beta.rds beta_als2.rds beta_als4.rds policy_neutral.rds build_multipliers.rds fitsero.rds seroprevdata.rds params.rda can_vac.rda ../data/serop_avgcase_data.csv params.rda
 	$(pipeR)
 	
-# init_cond_scenario.Rout: init_cond_scenario.R calibrate.rds seroprevdata.rds fitsero.rds ../data/serop_avgcase_data.csv params.rda 
+# compute baseline vs early-booster differences
+change_baseline_early.Rout: change_baseline_early.R ../output/comb_vax_als_bars.csv ../output/early_boosters_bars.csv
+	$(pipeR)
+
+#  Strictest ALS before relaxation at varying vaccination rates
+#switch_als42_counterfactual.Rout: switch_als42_counterfactual.R calibrate.rds switch_als4_als2.rds build_multipliers.rds fitsero.rds seroprevdata.rds params.rda  ../data/serop_avgcase_data.csv params.rda
 #	$(pipeR)
 
 Ignore += makestuff
