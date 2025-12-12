@@ -7,9 +7,10 @@ loadEnvironments()
 offset0 <- 150
 
 dat <- csvRead()
-day0 <- as.Date("2021-12-17") - lubridate::days(offset0)
+day0 <- as.Date("2021-12-07") - lubridate::days(offset0)
 
 can <- (dat
+        # |> filter(grepl("ewfoundland",prename))  -->
         |> filter(grepl("Canada",prename)) 
         |> select(week_end,contains("numtotal"))
         |> mutate( numtotal_2nd_additional = ifelse(is.na(numtotal_2nd_additional),0,numtotal_2nd_additional)
@@ -25,9 +26,11 @@ can <- (dat
                   , days = as.numeric(week_end - day0)
                   , week_end = week_end
         )
-        |> select(days,daily_rate,week_end)
-        |> filter(between(days,0,159 + offset0))
-        #	|> filter(between(days,-20,159))
+        |> mutate(daily_rate = as.integer((daily_rate/36991981) * 510550 ))
+        |> select(days, week_end, daily_rate)
+        |> filter(between(days,0,159 + offset0)) 
 )
+
+can$daily_rate[can$daily_rate < 0] = 0
 
 saveVars(can)
