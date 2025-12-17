@@ -1,7 +1,7 @@
 
 suppressPackageStartupMessages({
   library(dplyr); library(tidyr); library(purrr)
-  library(ggplot2); library(ggthemes); library(splines)
+  library(ggplot2); library(ggthemes)
   library(shellpipes); library(macpan2); library(grid)
   library(scales); library(tibble)
   library(broom.mixed); library(zoo); library(patchwork)
@@ -13,37 +13,83 @@ options(dplyr.summarise.inform = FALSE)
 
 ## ------------------------- config ------------------------------------------
 
-date0       <- as.Date("2021-12-17")
-date_end    <- as.Date("2022-07-09")
+date0           <- as.Date("2021-12-17")
+date_end        <- as.Date("2022-07-09")
 offset0         <- 150
 upper_plot_time <- 300
 start_date      <- date0
 sim_horizon     <- 500
+
+fig_dir         <- "../figures"
+diag_dir        <- file.path(fig_dir, "diagnostics")
 
 csv_out_summary <- "../output/vax_only_scenario_summary.csv"
 csv_out_bars    <- "../output/vax_only_scenario_bars.csv"
 
 ## ------------------------- inputs ------------------------------------------
 
-calibrator   <- rdsRead("calibrate")
-multipliers  <- rdsRead("build_multipliers")
-seroprevdata <- rdsRead("seroprevdata")
-fitserodata <- rdsRead("fitsero.rds")
-time_steps   <- max(fitserodata$time)
+calibrator    <- rdsRead("calibrate")
+multipliers   <- rdsRead("build_multipliers")
+seroprevdata  <- rdsRead("seroprevdata")
+fitserodata   <- rdsRead("fitsero.rds")
+time_steps    <- max(fitserodata$time)
 
 padded_beta0_hat <- rdsRead("policy_neutral")
 spec_fixed       <- mp_optimized_spec(calibrator, "modified")
 
-## ------------------------- helpers -----------------------------------------
+## ------------------------- plotting vars -----------------------------------
+
+lim_dat   <- \(x) dplyr::filter(x, time <= upper_plot_time)
+state_var <- c("S1","E1","V2","I1","A1","R1","E2","V3","I2","A2","R2","E3","I3","A3","R3")
+
+## ------------------------- io helpers --------------------------------------
+
+ensure_dir <- function(path) {
+  if (!dir.exists(path)) dir.create(path, recursive = TRUE)
+  invisible(path)
+}
+
+slugify <- function(x) {
+  x |>
+    tolower() |>
+    gsub("%", "pct", x = _) |>
+    gsub("[^a-z0-9]+", "_", x = _) |>
+    gsub("^_|_$", "", x = _)
+}
+
+save_png <- function(path, plot_obj, width, height, res = 300, bg = "white") {
+  png(path, width = width, height = height, res = res, bg = bg, type = "cairo")
+  print(plot_obj)
+  dev.off()
+  invisible(path)
+}
+
+ensure_dir(fig_dir)
+ensure_dir(diag_dir)
+ensure_dir(dirname(csv_out_summary))
+ensure_dir(dirname(csv_out_bars))
+
+## ------------------------- model helpers -----------------------------------
 
 set_vax <- function(spec, scale) {
   if (is.null(spec$default$double_vac_values_base))
     spec$default$double_vac_values_base  <- spec_fixed$default$double_vac_values
   if (is.null(spec$default$booster_vac_values_base))
     spec$default$booster_vac_values_base <- spec_fixed$default$booster_vac_values
+  
   spec$default$double_vac_values  <- scale * spec$default$double_vac_values_base
   spec$default$booster_vac_values <- scale * spec$default$booster_vac_values_base
   spec
+}
+
+update_beta <- function(new_beta) {
+  cp_spec <- spec_fixed
+  stopifnot(length(new_beta) == cp_spec$default$time_steps)
+  
+  cp_spec |>
+    mp_tmb_delete(phase = "before", at = 24L) |>
+    mp_tmb_delete(phase = "before", at = 24L) |>
+    mp_tmb_insert(default = list(timeseries_beta = new_beta))
 }
 
 simulate_series <- function(spec, scale = 1) {
@@ -57,24 +103,59 @@ simulate_series <- function(spec, scale = 1) {
     dplyr::transmute(date = as.Date(date), inc = value)
 }
 
-update_beta <- function(new_beta) {
-  cp_spec <- spec_fixed
-  stopifnot(length(new_beta) == cp_spec$default$time_steps)
-  cp_spec |>
-    mp_tmb_delete(phase = "before", at = 24L) |>
-    mp_tmb_delete(phase = "before", at = 24L) |>
-    mp_tmb_insert(default = list(timeseries_beta = new_beta))
+save_diagnostics <- function(spec, vax_label, als_label) {
+  p_diag <- spec |>
+    mp_simulator(time_steps, outputs = state_var) |>
+    mp_trajectory() |>
+    lim_dat() |>
+    ggplot() +
+    aes(time, value) +
+    geom_line() +
+    facet_wrap(~matrix, scales = "free") +
+    labs(
+      title = paste0("Diagnostics: ", als_label, " | vax = ", vax_label),
+      x     = NULL,
+      y     = "Values"
+    ) +
+    theme_clean() +
+    theme(
+      axis.text.x       = element_text(size = 15, angle = 0, hjust = 1),
+      axis.text.y       = element_text(size = 15),
+      axis.title.y      = element_text(size = 15),
+      plot.title        = element_text(size = 20, hjust = 0.5),
+      strip.text        = element_text(size = 15, face = "plain"),
+      legend.position   = "top",
+      legend.direction  = "horizontal",
+      legend.box        = "horizontal",
+      legend.background = element_blank(),
+      legend.text       = element_text(size = 15),
+      panel.spacing     = unit(1.5, "cm"),
+      plot.background   = element_blank()
+    )
+  
+  fn <- file.path(
+    diag_dir,
+    paste0("diagnostic_vax_only", slugify(als_label), "_vax_", slugify(vax_label), ".png")
+  )
+  
+  save_png(fn, p_diag, width = 5000, height = 4000)
 }
 
 ## ------------------------- factors & labels --------------------------------
 
 als_levels <- c("No-ALS Only")
-vax_scales <- c("0%" = 0, "25%" = 0.25, "50%" = 0.50, "75%" = 0.75, "100%" = 1.0)
+
+vax_scales <- c(
+  "0%"   = 0,
+  "25%"  = 0.25,
+  "50%"  = 0.50,
+  "75%"  = 0.75,
+  "100%" = 1.0
+)
 
 vax_cf_levels <- names(vax_scales)
 keep_vax      <- vax_cf_levels
-
-panel_levels <- paste0(vax_cf_levels, " Vax & No-ALS Only")
+panel_levels  <- paste0(vax_cf_levels, " Vax & No-ALS Only")
 
 ## ------------------------- actual (observed) -------------------------------
 
@@ -87,19 +168,27 @@ actual <- simulate_series(spec_fixed) |>
 ## ------------------------- simulate counterfactuals ------------------------
 
 simulate_vax_set <- function(new_beta, als_label) {
-  spec_cf <- update_beta(new_beta)
+  spec_cf0 <- update_beta(new_beta)
+  
   purrr::imap_dfr(vax_scales, function(scale_val, vlab) {
-    simulate_series(spec_cf, scale_val) |>
+    spec_cf <- set_vax(spec_cf0, scale_val)
+    
+    # diagnostics per vax update
+    save_diagnostics(spec_cf, vax_label = vlab, als_label = als_label)
+    
+    # incidence trajectory
+    spec_cf |>
+      mp_simulator(sim_horizon, outputs = "inc") |>
+      mp_trajectory() |>
+      dplyr::filter(matrix == "inc", time >= offset0) |>
+      dplyr::mutate(date = date0 + (time - offset0)) |>
+      dplyr::filter(date >= date0) |>
+      dplyr::transmute(date = as.Date(date), inc = as.integer(round(value))) |>
       dplyr::mutate(
-        date       = as.Date(date),
-        inc        = as.integer(round(inc)),
-        vax        = factor(vlab, levels = vax_cf_levels),
-        als_scen   = factor(als_label, levels = als_levels),
-        series     = "Counterfactual",
-        panel_title = factor(
-          paste0(vax, " Vax & ", als_scen),
-          levels = panel_levels
-        )
+        vax         = factor(vlab, levels = vax_cf_levels),
+        als_scen     = factor(als_label, levels = als_levels),
+        series       = "Counterfactual",
+        panel_title  = factor(paste0(vax, " Vax & ", als_scen), levels = panel_levels)
       ) |>
       dplyr::select(date, inc, vax, als_scen, series, panel_title)
   })
@@ -107,12 +196,12 @@ simulate_vax_set <- function(new_beta, als_label) {
 
 beta_list <- list("No-ALS Only" = padded_beta0_hat)
 
-df_all <- purrr::imap_dfr(beta_list, function(beta_vec, als_label) {
+cf_df_full <- purrr::imap_dfr(beta_list, function(beta_vec, als_label) {
   simulate_vax_set(beta_vec, als_label)
 }) |>
   dplyr::arrange(als_scen, vax, date)
 
-cf_df_full <- df_all
+df_all <- cf_df_full
 
 ## ------------------------- actual replicated to all panels -----------------
 
@@ -198,9 +287,7 @@ summ_df <- dplyr::bind_rows(
 )
 
 summ_tab <- summ_df |>
-  dplyr::mutate(
-    title = paste(vax, als_scen, sep = " - ")
-  ) |>
+  dplyr::mutate(title = paste(vax, als_scen, sep = " - ")) |>
   dplyr::filter(date <= date_end) |>
   dplyr::group_by(title, series) |>
   dplyr::summarise(
@@ -243,6 +330,21 @@ p <- ggplot() +
     linetype  = 4,
     linewidth = 1.0
   ) +
+  geom_rect(
+    inherit.aes = FALSE,
+    xmin = as.Date("2022-05-22"),
+    xmax = as.Date("2022-11-30"),
+    ymin = -Inf,
+    ymax = Inf,
+    fill = "grey80",
+    alpha = 0.3
+  ) +
+  geom_vline(
+    xintercept = as.Date("2022-05-22"),
+    colour    = "purple",
+    linetype  = 4,
+    linewidth = 1.5
+  ) +
   scale_x_date(expand = c(0, 0), date_breaks = "2 weeks", date_labels = "%b %d") +
   scale_y_continuous(labels = scales::comma) +
   scale_color_manual(
@@ -252,40 +354,38 @@ p <- ggplot() +
   labs(
     title = "Estimated daily infections under vaccination-only scenario without NPIs (No-ALS)",
     x     = NULL,
-    y     = "estimated infections"
+    y     = "Estimated infections"
   ) +
   theme_clean() +
   theme(
-    axis.text.x      = element_text(size = 18, angle = 45, hjust = 1),
-    axis.text.y      = element_text(size = 18),
-    axis.title.y     = element_text(size = 18),
-    plot.title       = element_text(size = 24, hjust = 0.5),
-    strip.text = element_text(size = 18, face = "plain"),
-    legend.position  = "top",
-    legend.direction = "horizontal",
-    legend.box       = "horizontal",
-    legend.background= element_blank(),
-    legend.text      = element_text(size = 18),
-    panel.spacing    = unit(1.5, "cm"),
-    plot.background  = element_blank()
+    axis.text.x       = element_text(size = 18, angle = 45, hjust = 1),
+    axis.text.y       = element_text(size = 18),
+    axis.title.y      = element_text(size = 18),
+    plot.title        = element_text(size = 24, hjust = 0.5),
+    strip.text        = element_text(size = 18, face = "plain"),
+    legend.position   = "top",
+    legend.direction  = "horizontal",
+    legend.box        = "horizontal",
+    legend.background = element_blank(),
+    legend.text       = element_text(size = 18),
+    panel.spacing     = unit(1.5, "cm"),
+    plot.background   = element_blank()
   )
 
-png("../figures/vax_scenarios.png",width = 4000, height = 3500, res = 300,bg = "white", type = "cairo")
-print(p)
-dev.off()
+save_png(file.path(fig_dir, "vax_scenarios.png"), p, width = 4000, height = 3500)
 
-#####---------------------------------------------------------------------------------------
+## ------------------------- single-panel overlay plot (pp) ------------------
 
 pal <- c(
-  "Actual"       = "red",
-  "0%" = "gray49",
-  "25%" = "purple",
-  "50%"  = "#0072B2",
-  "75%"   = "#009E73",
+  "Actual" = "red",
+  "0%"     = "gray49",
+  "25%"    = "purple",
+  "50%"    = "#0072B2",
+  "75%"    = "#009E73",
   "100%"   = "#E69F00"
 )
 
-legend_breaks <- c("Actual",vax_cf_levels)
+legend_breaks <- c("Actual", vax_cf_levels)
 
 pp <- ggplot() +
   geom_line(
@@ -317,27 +417,38 @@ pp <- ggplot() +
     linetype  = 4,
     linewidth = 1.0
   ) +
+  geom_rect(
+    inherit.aes = FALSE,
+    xmin = as.Date("2022-05-22"),
+    xmax = max(cf_df_full$date, na.rm = TRUE),
+    ymin = -Inf,
+    ymax = Inf,
+    fill = "grey80",
+    alpha = 0.3
+  ) +
+  geom_vline(
+    xintercept = as.Date("2022-05-22"),
+    colour    = "purple",
+    linetype  = 4,
+    linewidth = 1.5
+  ) +
   theme_clean() +
   theme(
-    axis.text.x      = element_text(size = 16, hjust = 1, angle = 45),
-    axis.title.x     = element_blank(),
-    axis.text.y      = element_text(size = 16),
-    axis.title.y     = element_text(size = 16),
-    plot.title       = element_text(size = 20, hjust = 0.5, face = "plain"),
-    legend.position  = c(0.8, 0.75),
-    legend.direction = "horizontal",
-    legend.box.just  = "left",
-    legend.title     = element_blank(),
-    legend.text      = element_text(size = 18, face = "plain"),
-    legend.background= element_blank(),
-    plot.background  = element_blank()
+    axis.text.x       = element_text(size = 16, hjust = 1, angle = 45),
+    axis.title.x      = element_blank(),
+    axis.text.y       = element_text(size = 16),
+    axis.title.y      = element_text(size = 16),
+    plot.title        = element_text(size = 20, hjust = 0.5, face = "plain"),
+    legend.position   = c(0.8, 0.75),
+    legend.direction  = "vertical",
+    legend.box.just   = "left",
+    legend.title      = element_blank(),
+    legend.text       = element_text(size = 18, face = "plain"),
+    legend.background = element_blank(),
+    plot.background   = element_blank()
   )
 
-print(pp)
-
-png("../figures/vax_scenario1.png",width = 4000, height = 1800, res = 300,bg = "white", type = "cairo")
-print(pp)
-dev.off()
+save_png(file.path(fig_dir, "vax_scenario1.png"), pp, width = 4000, height = 1800)
 
 ## ------------------ stacked barplot: total infections ----------------------
 
@@ -347,9 +458,9 @@ cf_bar <- df_all |>
   dplyr::filter(date >= date0) |>
   dplyr::mutate(
     vaccination = as.character(vax),
-    period = dplyr::if_else(date <= cutoff_date,"Up to March 14, 2022", "March 15 - Nov 30, 2022"),
-    series  = "Counterfactual",
-    als_scen = "No-ALS Only"
+    period      = dplyr::if_else(date <= cutoff_date, "Up to March 14, 2022", "March 15 - Nov 30, 2022"),
+    series      = "Counterfactual",
+    als_scen    = "No-ALS Only"
   ) |>
   dplyr::group_by(als_scen, vaccination, period, series) |>
   dplyr::summarise(total_infections = sum(inc, na.rm = TRUE), .groups = "drop")
@@ -358,9 +469,9 @@ actual_bar <- actual |>
   dplyr::filter(date >= date0) |>
   dplyr::mutate(
     vaccination = "Actual",
-    period = dplyr::if_else(date <= cutoff_date,"Up to March 14, 2022","March 15 - Nov 30, 2022"),
-    series  = "Actual",
-    als_scen = "No-ALS Only"
+    period      = dplyr::if_else(date <= cutoff_date, "Up to March 14, 2022", "March 15 - Nov 30, 2022"),
+    series      = "Actual",
+    als_scen    = "No-ALS Only"
   ) |>
   dplyr::group_by(als_scen, vaccination, period, series) |>
   dplyr::summarise(total_infections = sum(inc, na.rm = TRUE), .groups = "drop")
@@ -369,66 +480,66 @@ bar_df <- dplyr::bind_rows(cf_bar, actual_bar) |>
   dplyr::mutate(
     als_scen    = factor(als_scen, levels = "No-ALS Only"),
     vaccination = factor(vaccination, levels = c("0%", "25%", "50%", "75%", "100%", "Actual")),
-    period = factor(period, levels = c("March 15 - Nov 30, 2022", "Up to March 14, 2022")),fill_group = interaction(series, period, drop = TRUE)
-    )
+    period      = factor(period, levels = c("March 15 - Nov 30, 2022", "Up to March 14, 2022")),
+    fill_group  = interaction(series, period, drop = TRUE)
+  )
 
 write.csv(bar_df, csv_out_bars, row.names = FALSE)
 
 fill_vals <- c(
   "Counterfactual.Up to March 14, 2022"    = "#1b9e77",
-  "Counterfactual.March 15 - Nov 30, 2022" =  "gold",
+  "Counterfactual.March 15 - Nov 30, 2022" = "gold",
   "Actual.Up to March 14, 2022"            = "navy",
   "Actual.March 15 - Nov 30, 2022"         = "#f55f74"
 )
 
 fill_labs <- c(
-  "Actual.Up to March 14, 2022"            = "Up to March 14, 2022 (Actual)",
-  "Actual.March 15 - Nov 30, 2022"         = "March 15 – Nov 30, 2022 (Actual)",
-  "Counterfactual.Up to March 14, 2022"    = "Up to March 14, 2022 (Counterfactual)",
-  "Counterfactual.March 15 - Nov 30, 2022" = "March 15 – Nov 30, 2022 (Counterfactual)"
+  "Counterfactual.Up to March 14, 2022"    = "Counterfactual (≤ Mar 14)",
+  "Counterfactual.March 15 - Nov 30, 2022" = "Counterfactual (> Mar 14)",
+  "Actual.Up to March 14, 2022"            = "Actual (≤ Mar 14)",
+  "Actual.March 15 - Nov 30, 2022"         = "Actual (> Mar 14)"
 )
 
-p_bar <- ggplot() +
-  geom_col(data = bar_df |> dplyr::filter(series == "Counterfactual"), 
-           aes(x = vaccination, y = total_infections, fill = period), width = 0.75, position = "stack") +
-  scale_fill_manual(name = "Counterfactuals",values = c("Up to March 14, 2022" = "#1b9e77","March 15 - Nov 30, 2022" = "gold"),
-    breaks = c("Up to March 14, 2022", "March 15 - Nov 30, 2022")) +
-  # reset fill scale: allows a second independent legend
-  ggnewscale::new_scale_fill() +
+p_bar <- ggplot(bar_df) +
   geom_col(
-    data = bar_df |> dplyr::filter(series == "Actual"), aes(x = vaccination, y = total_infections, fill = period), width = 0.75, position = "stack") +
-  scale_fill_manual(name = "Actual", values = c("Up to March 14, 2022" = "navy","March 15 - Nov 30, 2022" = "#f55f74"),
-                    breaks = c("Up to March 14, 2022", "March 15 - Nov 30, 2022"))+
-  facet_wrap(~ als_scen, nrow = 1, scales = "fixed") +
+    aes(x = vaccination, y = total_infections, fill = fill_group),
+    width = 0.75,
+    position = "stack"
+  ) +
+  scale_fill_manual(
+    values = fill_vals,
+    breaks = names(fill_labs),
+    labels = fill_labs,
+    name   = NULL
+  ) +
   scale_x_discrete(expand = expansion(mult = 0.1)) +
   scale_y_continuous(labels = scales::comma) +
-  
   labs(
-    title = "cumulative infections under vaccination-only scenario without ALS",
-    x     = "vaccination rate",
-    y     = "total infections (people)"
+    title = "Cumulative infections under vaccination-only scenario without ALS",
+    x     = NULL,
+    y     = "Total infections (people)"
   ) +
-  
+  guides(fill = guide_legend(nrow = 1, byrow = TRUE)) +
   theme_clean() +
   theme(
-    axis.text.x      = element_text(size = 18),
-    axis.text.y      = element_text(size = 18),
-    axis.title.x     = element_text(size = 18),
-    axis.title.y     = element_text(size = 18),
-    plot.title       = element_text(size = 24, hjust = 0.5, face = "plain"),
-    strip.text = element_text(size = 0, face = "plain"),
-    strip.background = element_blank(),
-    legend.position  = "top",
-    legend.direction = "vertical",
-    legend.box       = "horizontal",
-    legend.text      = element_text(size = 16),
-    legend.title     = element_text(size = 18),
-    legend.background= element_blank(),
-    panel.spacing.x  = unit(2, "cm")
+    axis.text.x       = element_text(size = 18),
+    axis.text.y       = element_text(size = 18),
+    axis.title.x      = element_text(size = 18),
+    axis.title.y      = element_text(size = 18),
+    plot.title        = element_text(size = 24, hjust = 0.5, face = "plain"),
+    strip.text        = element_text(size = 0, face = "plain"),
+    strip.background  = element_blank(),
+    legend.position   = "top",
+    legend.direction  = "vertical",
+    legend.box        = "horizontal",
+    legend.text       = element_text(size = 16),
+    legend.title      = element_text(size = 18),
+    legend.background = element_blank(),
+    panel.spacing.x   = unit(2, "cm"),
+    plot.background   = element_blank()
   )
 
-png("../figures/vax_scenarios_bar.png",width = 4500, height = 2000, res = 300, bg = "white", type = "cairo")
-print(p_bar)
-dev.off()
+save_png(file.path(fig_dir, "vax_scenarios_bar.png"), p_bar, width = 4500, height = 2000)
+
 
 

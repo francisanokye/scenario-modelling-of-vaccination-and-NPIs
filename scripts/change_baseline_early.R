@@ -17,8 +17,10 @@ options(scipen = 9999999)
 
 baseline_file <- csvRead("comb_vax_als_bars.csv")     
 early_file    <- csvRead("early_boosters_bars.csv")   
+canada_vax    <- csvRead("canada_vax_bars.csv")   
 
-als_vax_raw <- bind_rows(baseline_file, early_file)
+#als_vax_raw <- bind_rows(baseline_file, early_file)
+als_vax_raw <- bind_rows(baseline_file, canada_vax)
 
 # standardize period labels
 als_vax_clean <- als_vax_raw |>
@@ -114,6 +116,6 @@ p <- ggplot(plot_df,aes(x = vaccination, y = diff, fill = period)) +
 print(p)
 
 
-png("../figures/alsvax_early_total_diffs.png",width  = 4500, height = 2500,res    = 300,bg     = "white",type   = "cairo")
+png("../figures/alsvaxcanadarate_diffs.png",width  = 4500, height = 2500,res    = 300,bg     = "white",type   = "cairo")
 print(p)
 dev.off()

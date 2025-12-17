@@ -70,12 +70,12 @@ early_vax_als_summary <- read_csv("~/Documents/scenario-modelling-of-vaccination
 View(early_vax_als_summary)
 ```
 
-```{r fig.width=25, fig.height=7}
+```{r fig.width=50, fig.height=7}
 library(magick)
 
 # Read images
-img1 <- image_read("~/Documents/scenario-modelling-of-vaccination-and-NPIs/figures/vax_scenario1.png")
-img2 <- image_read("~/Documents/scenario-modelling-of-vaccination-and-NPIs/figures/vax_scenarios_bar.png")
+img1 <- image_read("C:/Users/fanok/Documents/scenario-modelling-of-vaccination-and-NPIs/figures/als_novax_scenario1.png")
+img2 <- image_read("C:/Users/fanok/Documents/scenario-modelling-of-vaccination-and-NPIs/figures/als_novax_bar.png")
 
 # Get width of img1
 w1 <- image_info(img1)$width
@@ -98,10 +98,11 @@ combined_magick_vert <- image_append(c(img1, img2), stack = TRUE)
 # Save output
 image_write(
   combined_magick_vert,
-  "~/Documents/scenario-modelling-of-vaccination-and-NPIs/figures/vaxscenarios.png"
+  "C:/Users/fanok/Documents/scenario-modelling-of-vaccination-and-NPIs/figures/als_novax.png"
 )
 
 ```
+
 
 
 
