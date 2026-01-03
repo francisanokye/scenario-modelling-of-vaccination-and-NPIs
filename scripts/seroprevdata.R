@@ -9,7 +9,7 @@ loadEnvironments()
 
 # define study period
 start_date <- "2021-12-15"
-last_date  <- "2022-07-15"  # "2022-05-26"
+last_date  <- "2022-05-22" 
 
 # read and format seroprevalence data
 seroprevalence <- csvRead()
@@ -18,7 +18,6 @@ seroprevalence <- (seroprevalence
                    |> filter((geo == "NL") & (ab_estimate == "Anti-N estimate")) 
                    |> rename_at("week_end", ~"date") 
                    |> select(date, pct_mean) 
-                   #	|> mutate(day = 1:n())  ##MLi: why?
 )
 
 print(seroprevalence)

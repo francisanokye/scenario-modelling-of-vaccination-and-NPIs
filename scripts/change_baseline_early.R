@@ -1,121 +1,109 @@
 suppressPackageStartupMessages({
-  library(tidyverse)
-  library(shellpipes)
   library(dplyr)
   library(tidyr)
   library(ggplot2)
-  library(readr)
-  library(forcats)
-  library(ggthemes)
+  library(stringr)
   library(scales)
-  library(grid)   
+  library(ggthemes)
+  library(grid)
+  library(shellpipes)
 })
 
 options(scipen = 9999999)
 
-## ------------------------- load & clean ------------------------------------
+## ------------------------- load -------------------------------------------
+baseline_file <- csvRead("comb_vax_als_bar.csv")       # "normal"
+early_file    <- csvRead("early_boosters_bar.csv")   # "early"
 
-baseline_file <- csvRead("comb_vax_als_bars.csv")     
-early_file    <- csvRead("early_boosters_bars.csv")   
-canada_vax    <- csvRead("canada_vax_bars.csv")   
+baseline_file <- baseline_file %>% mutate(type = "normal")
+early_file    <- early_file    %>% mutate(type = "early")
 
-#als_vax_raw <- bind_rows(baseline_file, early_file)
-als_vax_raw <- bind_rows(baseline_file, canada_vax)
+als_vax_raw <- bind_rows(baseline_file, early_file)
 
-# standardize period labels
-als_vax_clean <- als_vax_raw |>
+print(als_vax_raw)
+
+## ------------------------- clean period labels ----------------------------
+# normalize dash variants and whitespace once, then map reliably
+als_vax_clean <- als_vax_raw %>%
   mutate(
-    period = recode(
-      period,
-      "Up to March 14, 2022"     = "Dec 15–Mar 14",
-      "March 15 – Nov 30, 2022"  = "Mar 15–Nov 30",
-      "March 15 - Nov 30, 2022"  = "Mar 15–Nov 30"
+    period = str_squish(period),
+    period = str_replace_all(period, "[\u2012\u2013\u2014\u2212]", "-"), # en/em/minus → "-"
+    period = str_replace_all(period, "–", "-"),
+    period = str_replace_all(period, "\\s*-\\s*", " - "),
+    period = case_when(
+      str_detect(period, "^Up to March 14, 2022$") ~ "Dec 15, 2021 - Mar 14, 2022",
+      str_detect(period, "^March 15\\s*-\\s*Dec 02, 2022$") ~ "Mar 15, 2022 - Dec 02, 2022",
+      str_detect(period, "^March 15\\s*-\\s*Nov 30, 2022$") ~ "Mar 15, 2022 - Nov 30, 2022",
+      TRUE ~ period
     )
   )
 
-## --------------------- normal vs early side by side ------------------------
-
-als_vax_wide <- als_vax_clean |>
-  select(als_scen, vaccination, period, type, total_infections) |>
+## ------------------------- wide + diffs -----------------------------------
+als_vax_wide <- als_vax_clean %>%
+  select(type, als_scen, vax, period, total_infections) %>%
   pivot_wider(
-    names_from  = type,               
+    names_from  = type,
     values_from = total_infections
+  ) %>%
+  mutate(
+    diff = normal - early
   )
 
-# difference > 0 means more infections under baseline than early boosters
-als_vax_wide <- als_vax_wide |>
-  mutate(diff = normal - early)
+period_diffs <- als_vax_wide %>%
+  select(als_scen, vax, period, diff)
 
-## ------------------- period-specific and total diffs -----------------------
-
-period_diffs <- als_vax_wide |>
-  select(als_scen, vaccination, period, diff)
-
-total_diffs <- period_diffs |>
-  group_by(als_scen, vaccination) |>
-  summarise(diff = sum(diff, na.rm = TRUE), .groups = "drop") |>
-  mutate(period = "Total (Dec 15–Nov 30)")
+total_diffs <- period_diffs %>%
+  group_by(als_scen, vax) %>%
+  summarise(diff = sum(diff, na.rm = TRUE), .groups = "drop") %>%
+  mutate(period = "Total (Dec 15, 2021 - Dec 02, 2022)")
 
 als_levels <- c("No-ALS Only", "ALS-2 Only", "Implemented ALS", "ALS-4 Only")
 
-plot_df <- bind_rows(period_diffs, total_diffs) |>
+plot_df <- bind_rows(period_diffs, total_diffs) %>%
   mutate(
+    vax = factor(vax, levels = c("0%", "25%", "50%", "75%", "100%")),
+    als_scen = factor(als_scen, levels = als_levels),
     period = factor(
       period,
-      levels = c("Dec 15–Mar 14",
-                 "Mar 15–Nov 30",
-                 "Total (Dec 15–Nov 30)")
-    ),
-    vaccination = factor(
-      vaccination,
-      levels = c("0%", "25%", "50%", "75%", "100%")
-    ),
-    als_scen = factor(als_scen, levels = als_levels)
+      levels = c(
+        "Dec 15, 2021 - Mar 14, 2022",
+        "Mar 15, 2022 - Dec 02, 2022",
+        "Total (Dec 15, 2021 - Dec 02, 2022)"
+      )
+    )
   )
 
-## ----------------------------- colours -------------------------------------
-
-# okabe–ito style: colourblind-safe and high contrast
+## ------------------------- plot -------------------------------------------
 period_palette <- c(
-  "Dec 15–Mar 14"         = "#0072B2",  
-  "Mar 15–Nov 30"         = "#009E73",  
-  "Total (Dec 15–Nov 30)" = "#D55E00"   
+  "Dec 15, 2021 - Mar 14, 2022"          = "#0072B2",
+  "Mar 15, 2022 - Dec 02, 2022"          = "#009E73",
+  "Total (Dec 15, 2021 - Dec 02, 2022)"  = "#D55E00"
 )
 
-## ----------------------------- plot ----------------------------------------
-
-p <- ggplot(plot_df,aes(x = vaccination, y = diff, fill = period)) +
+p <- ggplot(plot_df, aes(x = vax, y = diff, fill = period)) +
   geom_hline(yintercept = 0, linewidth = 0.4, colour = "grey40") +
-  geom_col(position = position_dodge(width = 0.75),width    = 0.6) +
-  facet_wrap(~ als_scen, nrow = 2, scales = "free") +
-  scale_fill_manual(values = period_palette, name = "Period") +
+  geom_col(position = position_dodge(width = 0.75), width = 0.6) +
+  facet_wrap(~als_scen, nrow = 2, scales = "free") +
+  scale_fill_manual(values = period_palette, breaks = names(period_palette), name = NULL) +
   scale_y_continuous(labels = comma) +
   labs(
-    x     = "Vaccination rates",
-    y     = expression(Delta * " total infections (baseline - early boosters)"),
-    title = "Difference in cumulative infections: baseline vs. early boosters") +
+    x = "Vaccination rate",
+    y = "Difference in total infections (baseline − early boosters)",
+    title = "Difference in cumulative infections: baseline vs early booster schedule"
+  ) +
   theme_clean() +
   theme(
-    axis.text.x      = element_text(size = 18, angle = 0, hjust = 0.5),
-    axis.text.y      = element_text(size = 18),
-    axis.title.x     = element_text(size = 18),
-    axis.title.y     = element_text(size = 18),
-    plot.title       = element_text(size = 20, hjust = 0.5, face = "plain"),
-    strip.text       = element_text(size = 20, face = "plain"),
-    legend.position  = "top",
+    legend.position = "top",
     legend.direction = "horizontal",
-    legend.box       = "horizontal",
-    legend.text      = element_text(size = 16),
-    legend.title     = element_blank(),
-    legend.background= element_blank(),
-    plot.background  = element_blank(),
-    panel.spacing.x  = unit(1.2, "cm"),
-    panel.spacing.y  = unit(0.8, "cm")
+    axis.text.x = element_text(size = 14),
+    axis.text.y = element_text(size = 14),
+    strip.text  = element_text(size = 14),
+    panel.spacing.x = unit(1.2, "cm"),
+    panel.spacing.y = unit(0.8, "cm")
   )
 
 print(p)
 
-
-png("../figures/alsvaxcanadarate_diffs.png",width  = 4500, height = 2500,res    = 300,bg     = "white",type   = "cairo")
+png("../figures/alsvaxrate_diffs.png", width = 4500, height = 2500, res = 300, bg = "white", type = "cairo")
 print(p)
 dev.off()

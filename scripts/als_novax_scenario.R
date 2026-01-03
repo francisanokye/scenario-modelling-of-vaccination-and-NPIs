@@ -14,16 +14,15 @@ options(dplyr.summarise.inform = FALSE)
 ## ------------------------- config -----------------------------------------
 
 date0           <- as.Date("2021-12-17")
-date_end        <- as.Date("2022-07-09")
 start_date      <- date0
 offset0         <- 150
 sim_horizon     <- 500
 upper_plot_time <- 300
 
 fig_dir   <- "../figures"
-diag_dir  <- file.path(fig_dir, "diagnostics_als_novax")
-csv_out   <- "../output/als_novax_scenario_summary.csv"
-csv_bars  <- "../output/als_novax_scenario_bars.csv"
+diag_dir  <- file.path(fig_dir, "als_only_diagnostics")
+csv_out   <- "../output/als_only_summary.csv"
+csv_bars  <- "../output/als_only_bar.csv"
 
 ## ------------------------- io helpers -------------------------------------
 
@@ -81,7 +80,7 @@ if (is.null(spec_fixed$integers$booster_vac_changepoints_base))
 
 ## ------------------------- scenarios ---------------------------------------
 
-als_levels <- c("No-ALS Only", "ALS-4 Only") #"ALS-2 Only", "Implemented ALS", 
+als_levels <- c("No-ALS Only", "ALS-2 Only", "Implemented ALS", "ALS-4 Only")  
 als_fac    <- factor(als_levels, levels = als_levels)
 
 ## ------------------------- helpers ----------------------------------------
@@ -373,7 +372,7 @@ p <- ggplot() +
     plot.background   = element_blank()
   )
 
-save_png(file.path(fig_dir, "als_novax_scenario.png"), p, width = 4000, height = 3500)
+save_png(file.path(fig_dir, "als_only_scenario.png"), p, width = 4000, height = 3500)
 
 ## ------------------------- single overlay plot -----------------------------
 
@@ -405,10 +404,10 @@ pp <- ggplot() +
   geom_vline(xintercept = as.Date("2022-05-22"), colour = "purple", linetype = 4, linewidth = 1.5) +
   theme_clean() +
   theme(
-    axis.text.x       = element_text(size = 16, hjust = 1, angle = 45),
-    axis.text.y       = element_text(size = 16),
-    axis.title.y      = element_text(size = 16),
-    plot.title        = element_text(size = 20, hjust = 0.5, face = "plain"),
+    axis.text.x       = element_text(size = 18, hjust = 1, angle = 45),
+    axis.text.y       = element_text(size = 18),
+    axis.title.y      = element_text(size = 18),
+    plot.title        = element_text(size = 24, hjust = 0.5, face = "plain"),
     legend.position   = c(0.75, 0.65),
     legend.direction  = "vertical",
     legend.box.just   = "center",
@@ -417,7 +416,7 @@ pp <- ggplot() +
     plot.background   = element_blank()
   )
 
-save_png(file.path(fig_dir, "als_novax_scenario1.png"), pp, width = 4000, height = 1800)
+save_png(file.path(fig_dir, "als_only_scen1.png"), pp, width = 4800, height = 1600)
 
 ## ------------------ stacked barplot: total infections ----------------------
 
@@ -451,17 +450,17 @@ bar_df <- dplyr::bind_rows(cf_bar, actual_bar) |>
 write.csv(bar_df, csv_bars, row.names = FALSE)
 
 fill_vals <- c(
-  "Counterfactual.Up to March 14, 2022"    = "violet",
-  "Counterfactual.March 15 - Nov 30, 2022" = "gray70",
+  "Counterfactual.Up to March 14, 2022"    = "purple",
+  "Counterfactual.March 15 - Nov 30, 2022" = "gray30",
   "Actual.Up to March 14, 2022"            = "navy",
   "Actual.March 15 - Nov 30, 2022"         = "#f55f74"
 )
 
 fill_labs <- c(
-  "Counterfactual.Up to March 14, 2022"    = "Counterfactual (≤ Mar 14)",
-  "Counterfactual.March 15 - Nov 30, 2022" = "Counterfactual (> Mar 14)",
-  "Actual.Up to March 14, 2022"            = "Actual (≤ Mar 14)",
-  "Actual.March 15 - Nov 30, 2022"         = "Actual (> Mar 14)"
+  "Counterfactual.Up to March 14, 2022"    = "Counterfactual (≤ Mar 14, 2022)",
+  "Counterfactual.March 15 - Nov 30, 2022" = "Counterfactual (> Mar 14, 2022)",
+  "Actual.Up to March 14, 2022"            = "Actual (≤ Mar 14, 2022)",
+  "Actual.March 15 - Nov 30, 2022"         = "Actual (> Mar 14, 2022)"
 )
 
 p_bar <- ggplot(bar_df) +
@@ -484,19 +483,19 @@ p_bar <- ggplot(bar_df) +
     axis.text.x       = element_text(size = 18),
     axis.text.y       = element_text(size = 18),
     axis.title.y      = element_text(size = 18),
-    plot.title        = element_text(size = 24, hjust = 0.5),
+    plot.title        = element_text(size = 24, hjust = 0.5, face = "plain"),
     strip.text        = element_text(size = 0, face = "plain"),
     strip.background  = element_blank(),
     legend.position   = "top",
     legend.direction  = "horizontal",
     legend.box        = "horizontal",
     legend.justification = "center",
-    legend.text       = element_text(size = 16),
+    legend.text       = element_text(size = 18),
     legend.background = element_blank(),
     panel.spacing.x   = unit(2, "cm"),
     plot.background   = element_blank()
   )
 
-png(file.path(fig_dir, "als_novax_bar.png"), width = 4500, height = 2000, res = 300, bg = "white", type = "cairo")
+png(file.path(fig_dir, "als_only_bar.png"), width = 4800, height = 1600, res = 300, bg = "white", type = "cairo")
 print(p_bar)
 dev.off()

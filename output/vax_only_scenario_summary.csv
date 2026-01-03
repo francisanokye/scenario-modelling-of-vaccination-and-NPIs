@@ -1,7 +1,0 @@
-"title","series","cumulative_infections","peak_infections","peak_date"
-"0% - No-ALS Only","Counterfactual",413155,15815,2022-01-25
-"100% - No-ALS Only","Counterfactual",294324,6904,2022-02-03
-"25% - No-ALS Only","Counterfactual",391475,13885,2022-01-26
-"50% - No-ALS Only","Counterfactual",365114,11578,2022-01-28
-"75% - No-ALS Only","Counterfactual",333087,9125,2022-01-29
-"Actual - No-ALS Only","Actual",244361,1879,2022-04-18

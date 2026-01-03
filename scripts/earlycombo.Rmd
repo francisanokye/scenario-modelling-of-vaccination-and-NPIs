@@ -4,78 +4,81 @@ output: html_notebook
 ---
 
 
-```{r}
-library(ggplot2)
-library(dplyr)
-library(scales)
-library(ggthemes)
+```{r fig.width=12, fig.height=7}
 
-combo <- read.csv("~/Documents/scenario-modelling-of-vaccination-and-NPIs/output/early_vax_als1.csv")
-early <- read.csv("~/Documents/scenario-modelling-of-vaccination-and-NPIs/output/early_vax_als_bars.csv")
-merged <- rbind(early, combo)
+suppressPackageStartupMessages({
+  library(readr)
+  library(dplyr)
+  library(ggplot2)
+  library(forcats)
+  library(scales)
+})
 
-# Prepare factors consistently
-merged <- merged %>%
+
+als_vax <- read.csv("~/scenario-modelling-of-vaccination-and-NPIs/output/als_&_vax_bar.csv")
+early_booster <- read.csv("~/scenario-modelling-of-vaccination-and-NPIs/output/early_booster_bar.csv")
+natl_vax_rate <- read.csv("~/scenario-modelling-of-vaccination-and-NPIs/output/natl_vax_rate_bar.csv")
+
+merged <- rbind(als_vax, early_booster, natl_vax_rate)
+#compare_bars <- write.csv(merged, "~/scenario-modelling-of-vaccination-and-NPIs/output/compare_bars.csv", row.names = FALSE)
+
+# ---- clean & order factors
+df2 <- merged %>%
   mutate(
-    type = factor(type, levels = c("normal", "early"), labels = c("Booster schedule", "Early boosters (shifted 28 days)")),
-    period = factor(period, levels = c("Up to March 14, 2022", "March 15 - Nov 30, 2022")),
-    vaccination = factor(vaccination, levels = c("0%","25%", "50%", "75%", "100%")),
-    als_scen = factor(als_scen, levels = c("No-ALS Only", "ALS-2 Only", "Implemented ALS", "ALS-4 Only"))
-    )
-
-# grouped-dodge for side-by-side bars
-pd <- position_dodge2(width = 0.9, preserve = "single")
-
-p_grouped_stacked <- ggplot(merged,
-  aes(x = vaccination,y = total_infections,fill = period,colour = type,group = interaction(type, period))) +
-  geom_col(width = 0.85, position = pd, linewidth = 1) +
-  facet_wrap(~ als_scen, nrow = 1, scales = "fixed") +
-  scale_fill_manual(values = c("Up to March 14, 2022" = "green","March 15 - Nov 30, 2022" = "yellow"), name = "") +
-  scale_color_manual(values = c("Observed booster schedule" = "red", "Early boosters (shifted 28 days)" = "blue"),name = "") +
-  scale_y_continuous(labels = comma) +
-  labs(
-    title = "Comparison of cumulative infections under combined ALS and vaccination and early booster dose scenarios",
-    x = "Vaccination rate (of observed coverage)",
-    y = "Cumulative estimated infections"
-  ) +
-  
-  theme_clean() +
-  theme(
-    axis.text.x      = element_text(size = 18),
-    axis.text.y      = element_text(size = 18),
-    axis.title.x     = element_text(size = 18),
-    axis.title.y     = element_text(size = 18),
-    plot.title       = element_text(size = 20, face = "plain", hjust = 0.5),
-    plot.subtitle    = element_text(size = 15, hjust = 0.5),
-    strip.text       = element_text(size = 17, face = "plain"),
-    legend.position  = "top",
-    legend.text      = element_text(size = 15),
-    legend.background= element_blank(),
-    legend.title     = element_text(size = 15),
-    panel.spacing.x  = unit(1.5, "cm")
+    vax = factor(vax, levels = c("0%","25%","50%","75%","100%")),
+    als_scen = factor(als_scen, levels = c("No-ALS Only", "ALS-2 Only", "Implemented ALS", "ALS-4 Only")),
+    period = factor(period, levels = c("Up to March 14, 2022", "March 15 - Dec 02, 2022")),
+    type = fct_recode(
+      factor(type), 
+      "Observed ALS & vax" = "als_&_vax",
+      "Early boosters"            = "early boosters",
+      "National vaccination rate" = "natl rate vax"
+    ),
+    type = fct_relevel(type, "Observed ALS & vax", "Early boosters", "Nationalvaccination rate")
   )
 
+# ---- plot ----
+p <- ggplot(df2, aes(x = vax, y = total_infections, fill = type)) +
+  geom_col(position = position_dodge(width = 0.85), width = 0.78, colour = "grey20", linewidth = 0.25) +
+  facet_grid(period ~ als_scen, scales = "free_y") +
+  scale_y_continuous(labels = comma) +
+  labs(
+    x = "Vaccination scale (relative to observed NL daily rate)",
+    y = "Total infections",
+    fill = NULL
+  ) +
+  theme_bw() +
+  theme(
+    axis.text.x       = element_text(size = 8,  hjust = 0.5, margin = margin(t = 8)),
+    axis.text.y       = element_text(size = 8),
+    axis.title.x      = element_text(size = 8),
+    axis.title.y      = element_text(size = 8),
+    legend.position = "bottom",
+    legend.box = "vertical",
+    legend.margin = margin(t = 2, r = 2, b = 2, l = 2),
+    panel.grid.minor = element_blank(),
+    strip.text = element_text(face = "bold", size = 12),
+    # strip.background  = element_blank(),
+    axis.title = element_text(face = "bold"),
+    panel.spacing     = unit(0.50, "cm"),
+    plot.background   = element_blank()
+  )
 
+p
 
-
-
-png("../figures/grouped_stacked.png",width = 4500, height = 2000, res = 300,bg = "white", type = "cairo")
-print(p_grouped_stacked)
-dev.off()
 ```
 
-```{r}
-library(readr)
-early_vax_als_summary <- read_csv("~/Documents/scenario-modelling-of-vaccination-and-NPIs/output/early_vax_als_summary.csv")
-View(early_vax_als_summary)
-```
 
 ```{r fig.width=50, fig.height=7}
 library(magick)
 
 # Read images
-img1 <- image_read("C:/Users/fanok/Documents/scenario-modelling-of-vaccination-and-NPIs/figures/als_novax_scenario1.png")
-img2 <- image_read("C:/Users/fanok/Documents/scenario-modelling-of-vaccination-and-NPIs/figures/als_novax_bar.png")
+img1 <- image_read("C:/Users/fanok/Documents/scenario-modelling-of-vaccination-and-NPIs/figures/vax_only_scen1.png")
+img2 <- image_read("C:/Users/fanok/Documents/scenario-modelling-of-vaccination-and-NPIs/figures/vax_only_bar.png")
+
+# img1 <- image_read("C:/Users/fanok/Documents/scenario-modelling-of-vaccination-and-NPIs/figures/als_only_scen1.png")
+# img2 <- image_read("C:/Users/fanok/Documents/scenario-modelling-of-vaccination-and-NPIs/figures/als_only_bar.png")
+
 
 # Get width of img1
 w1 <- image_info(img1)$width
@@ -96,10 +99,8 @@ if (w2 < w1) {
 combined_magick_vert <- image_append(c(img1, img2), stack = TRUE)
 
 # Save output
-image_write(
-  combined_magick_vert,
-  "C:/Users/fanok/Documents/scenario-modelling-of-vaccination-and-NPIs/figures/als_novax.png"
-)
+image_write(combined_magick_vert,"C:/Users/fanok/Documents/scenario-modelling-of-vaccination-and-NPIs/figures/vax_only.png")
+# image_write(combined_magick_vert,"C:/Users/fanok/Documents/scenario-modelling-of-vaccination-and-NPIs/figures/als_only.png")
 
 ```
 

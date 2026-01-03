@@ -79,7 +79,10 @@ canada_vax_scen.Rout: canada_vax_scen.R calibrate.rds base_beta.rds beta_als2.rd
 	$(pipeR)
 	
 # compute baseline vs early-booster differences
-change_baseline_early.Rout: change_baseline_early.R ../output/comb_vax_als_bars.csv ../output/early_boosters_bars.csv 
+compare_bars.Rout: compare_bars.R ../output/als_vax_bar.csv ../output/early_booster_bar.csv ../output/natl_vax_rate_bar.csv 
+	$(pipeR)
+
+change_baseline_early.Rout: change_baseline_early.R ../output/comb_vax_als_bar.csv ../output/early_boosters_bar.csv 
 	$(pipeR)
 
 change_baseline_canadavax.Rout: change_baseline_canadavax.R ../output/comb_vax_als_bars.csv ../output/canada_vax_bars.csv
