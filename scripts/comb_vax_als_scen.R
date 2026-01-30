@@ -11,7 +11,7 @@ set.seed(2025)
 options(macpan2_log_dir = ".")
 loadEnvironments()
 options(dplyr.summarise.inform = FALSE)
-options(scipen = 9999999999)
+options(scipen = 9999)
 
 ## --------------------------- config ---------------------------------------
 date0       <- as.Date("2021-12-17")
@@ -21,9 +21,9 @@ offset0     <- 150
 sim_horizon <- 500
 
 fig_dir  <- "../figures"
-diag_dir <- file.path(fig_dir, "als_vax_diagnostics")
-csv_out  <- "../output/als_vax_summary.csv"
-csv_bar <- "../output/als_vax_bar.csv"
+diag_dir <- file.path(fig_dir, "comb_als_vax_diagnostics")
+csv_out  <- "../output/comb_als_vax_summary.csv"
+csv_bar <- "../output/comb_als_vax_bar.csv"
 
 ## --------------------------- io helpers -----------------------------------
 ensure_dir <- function(path) {
@@ -178,7 +178,7 @@ plot_diagnostics <- function(tr, vax_label, als_label, scenario_label) {
 ## ---------------------- run all scenarios (FAST) ----------------------------
 diag_keep <- c("0%","25%","50%", "75%","100%")   # or character(0) to skip all
 
-run_all <- function(spec_base, beta_list, scenario_label="early_booster_28d") {
+run_all <- function(spec_base, beta_list, scenario_label="als_vax_combined") {
   
   purrr::imap_dfr(beta_list, function(beta_vec, als_label) {
     
@@ -207,7 +207,7 @@ run_all <- function(spec_base, beta_list, scenario_label="early_booster_28d") {
     arrange(als_scen, vax, date)
 }
 
-df_all <- run_all(spec_fixed, beta_list, scenario_label="early_booster_28d")
+df_all <- run_all(spec_fixed, beta_list, scenario_label="als_vax_combined")
 
 ## ---------------------- observed (actual) series (ONE RUN) -----------------
 # observed does NOT depend on ALS here, so simulate once and replicate
@@ -235,19 +235,19 @@ inc_plot_df <- plot_df |> select(-total_inc)
 total_inc_plot_df <- plot_df |> select(-inc)
 
 ## --------------------------- summary table --------------------------------
-summ_tab <- inc_plot_df |>
-  filter(date <= date_end) |>
-  mutate(title = paste(vax, als_scen, sep=" - ")) |>
-  group_by(title) |>
-  summarise(
-    cumulative_infections = round(sum(inc, na.rm=TRUE)),
-    peak_infections       = round(max(inc, na.rm=TRUE)),
-    peak_date             = date[which.max(inc)],
-    .groups="drop"
-  )
-
-print(summ_tab)
-write.csv(summ_tab, csv_out, row.names = FALSE)
+# summ_tab <- inc_plot_df |>
+#   filter(date <= date_end) |>
+#   mutate(title = paste(vax, als_scen, sep=" - ")) |>
+#   group_by(title) |>
+#   summarise(
+#     cumulative_infections = round(sum(inc, na.rm=TRUE)),
+#     peak_infections       = round(max(inc, na.rm=TRUE)),
+#     peak_date             = date[which.max(inc)],
+#     .groups="drop"
+#   )
+# 
+# print(summ_tab)
+# write.csv(summ_tab, csv_out, row.names = FALSE)
 
 ## ---------------------- figure: 20-panel grid ------------------------------
 # (still big, but now plotting is the main cost, not sims)
@@ -295,7 +295,7 @@ p_grid <- ggplot() +
     plot.background   = element_blank()
   )
 
-save_png(file.path(fig_dir, "als_vax_scenario.png"), p_grid, width=8000, height=5600, res=300)
+save_png(file.path(fig_dir, "comb_als_vax_scenario.png"), p_grid, width=8000, height=5600, res=300)
 
 ## ---------------------- Figure: 2x2 ALS × vax curves (inc) -----------------
 
@@ -374,7 +374,7 @@ pp <- ggplot() +
     strip.background  = element_blank()
   )
 
-save_png(file.path(fig_dir, "als_vax_scen1.png"), pp, width = 5500, height = 3500, res = 300)
+save_png(file.path(fig_dir, "comb_als_vax_scen1.png"), pp, width = 5500, height = 3500, res = 300)
 
 ## ---------------------- Figure: 2x2 ALS × vax curves (total_inc) -----------
 
@@ -445,7 +445,7 @@ ppp <- ggplot() +
     strip.background  = element_blank()
   )
 
-save_png(file.path(fig_dir, "als_vax_cum.png"), ppp, width = 5500, height = 3500, res = 300)
+save_png(file.path(fig_dir, "comb_als_vax_cum.png"), ppp, width = 5500, height = 3500, res = 300)
 
 
 ## ------------------ stacked bar: totals split at Mar 14 --------------------
@@ -476,7 +476,7 @@ sum_df <- total_inc_plot_df |>
     period = factor(period, levels=c("March 15 - Dec 02, 2022", "Up to March 14, 2022")),
     vax = factor(vax, levels=vax_order),
     als_scen = factor(als_scen, levels=als_levels),
-    type = "als_vax"
+    type = "als & vax"
   )
 
 write.csv(sum_df, csv_bar, row.names = FALSE)
@@ -520,4 +520,4 @@ p_bar <- ggplot(sum_df, aes(vax, total_infections, fill=period)) +
     panel.grid.major.x = element_blank()
   )
 
-save_png(file.path(fig_dir, "als_vax_bar.png"), p_bar, width = 6500, height = 3200, res = 300)
+save_png(file.path(fig_dir, "comb_als_vax_bar.png"), p_bar, width = 6500, height = 3200, res = 300)

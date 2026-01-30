@@ -1,4 +1,5 @@
-
+# 
+# 
 suppressPackageStartupMessages({
   library(dplyr); library(tidyr); library(purrr)
   library(ggplot2); library(ggthemes)
@@ -11,19 +12,20 @@ set.seed(2025)
 options(macpan2_log_dir = ".")
 loadEnvironments()
 options(dplyr.summarise.inform = FALSE)
-options(scipen = 9999999999)
+options(scipen = 9999)
 
 ## --------------------------- config ---------------------------------------
-date0       <- as.Date("2021-11-17")
+date0       <- as.Date("2021-12-17")
 date_end    <- as.Date("2022-05-22")
 start_date  <- date0
 offset0     <- 150
 sim_horizon <- 500
+shift_days  <- 28L
 
 fig_dir  <- "../figures"
 diag_dir <- file.path(fig_dir, "early_booster_diagnostics")
 csv_out  <- "../output/early_booster_summary.csv"
-csv_bars <- "../output/early_booster_bar.csv"
+csv_bar <- "../output/early_booster_bar.csv"
 
 ## --------------------------- io helpers -----------------------------------
 ensure_dir <- function(path) {
@@ -46,7 +48,7 @@ save_png <- function(path, plot_obj, width, height, res = 220, bg = "white") {
 }
 
 ensure_dir(fig_dir); ensure_dir(diag_dir)
-ensure_dir(dirname(csv_out)); ensure_dir(dirname(csv_bars))
+ensure_dir(dirname(csv_out)); ensure_dir(dirname(csv_bar))
 
 ## --------------------------- inputs ---------------------------------------
 calibrator   <- rdsRead("calibrate")
@@ -86,10 +88,62 @@ beta_list <- list(
 
 ## ---------------------- scaling vaccination --------------------------------
 set_vax <- function(spec, scale = 1.0) {
+  if (is.null(spec$default$double_vac_values_base))
+    spec$default$double_vac_values_base  <- spec$default$double_vac_values
+  if (is.null(spec$default$booster_vac_values_base))
+    spec$default$booster_vac_values_base <- spec$default$booster_vac_values
+
   spec$default$double_vac_values  <- scale * spec$default$double_vac_values_base
   spec$default$booster_vac_values <- scale * spec$default$booster_vac_values_base
   spec
 }
+
+## --------------------------- shift early boosters by 28 days --------------------------------
+# Shift booster schedule earlier by shift_days
+make_early_booster <- function(spec, shift_days = 28L) {
+  cf <- spec
+
+  cp0  <- cf$integers$booster_vac_changepoints_base
+  val0 <- cf$default$booster_vac_values_base
+
+  if (is.null(cp0) || length(cp0) == 0 || is.null(val0) || length(val0) == 0) {
+    cp0  <- cf$integers$booster_vac_changepoints
+    val0 <- cf$default$booster_vac_values
+  }
+
+  if (is.null(cp0) || length(cp0) == 0) {
+    warning("No booster changepoints found in spec; early-booster scenario equals baseline.")
+    return(cf)
+  }
+
+  cp0  <- as.integer(cp0)
+  val0 <- as.numeric(val0)
+  stopifnot(length(cp0) == length(val0))
+  stopifnot(all(is.finite(cp0)), all(is.finite(val0)))
+
+  cp <- pmax(1L, cp0 - as.integer(shift_days))
+  o  <- order(cp)
+
+  cp_s  <- cp[o]
+  val_s <- val0[o]
+
+  # keep last value if duplicates occur (common when clipping to 1)
+  keep_last <- !duplicated(cp_s, fromLast = TRUE)
+  cp_s  <- cp_s[keep_last]
+  val_s <- val_s[keep_last]
+
+  cf$integers$booster_vac_changepoints <- cp_s
+  cf$default$booster_vac_values        <- val_s
+
+  cf$integers$booster_vac_changepoints_base <- cp_s
+  cf$default$booster_vac_values_base        <- val_s
+
+  cf
+}
+
+spec_early28 <- make_early_booster(spec_fixed, shift_days = shift_days)
+
+stopifnot(min(spec_early28$integers$booster_vac_changepoints) >= 1)
 
 ## ------------------------- beta updater (do once per ALS) -------------------
 update_beta <- function(spec, new_beta) {
@@ -99,21 +153,6 @@ update_beta <- function(spec, new_beta) {
     mp_tmb_delete(phase = "before", at = 24L) |>
     mp_tmb_insert(default = list(timeseries_beta = new_beta))
 }
-
-## --------------------------- early boosters --------------------------------
-make_early28 <- function(spec) {
-  cf <- spec
-  cp0  <- as.integer(cf$integers$booster_vac_changepoints_base)
-  val0 <- as.numeric(cf$default$booster_vac_values_base)
-  
-  cp <- pmax(0L, cp0 - 28L)
-  o  <- order(cp)
-  cf$integers$booster_vac_changepoints <- cp[o]
-  cf$default$booster_vac_values        <- val0[o]
-  cf
-}
-
-spec_early28 <- make_early28(spec_fixed)
 
 ## ------------------------ one-run trajectory (FAST) -------------------------
 traj_all <- function(spec) {
@@ -135,7 +174,7 @@ extract_inc_total <- function(tr) {
 
 plot_diagnostics <- function(tr, vax_label, als_label, scenario_label) {
   df <- tr |> dplyr::filter(matrix %in% c(state_var,"total_inc"))
-  
+
   ggplot(df, aes(date, value)) +
     geom_line(linewidth = 0.4) +
     facet_wrap(~matrix, scales="free", ncol=4) +
@@ -191,26 +230,25 @@ plot_diagnostics <- function(tr, vax_label, als_label, scenario_label) {
 }
 
 ## ---------------------- run all scenarios (FAST) ----------------------------
-# diagnostics are expensive: save only these (change to vax_order for all)
-diag_keep <- c("0%","100%")   # or character(0) to skip all
+diag_keep <- c("0%","25%","50%", "75%","100%")   # or character(0) to skip all
 
 run_all <- function(spec_base, beta_list, scenario_label="early_booster_28d") {
-  
+
   purrr::imap_dfr(beta_list, function(beta_vec, als_label) {
-    
+
     spec_beta <- update_beta(spec_base, beta_vec)  # once per ALS beta
-    
+
     purrr::imap_dfr(vax_scales, function(scale_val, vlab) {
-      
+
       spec_cf <- set_vax(spec_beta, scale_val)
       tr <- traj_all(spec_cf)
-      
+
       if (vlab %in% diag_keep) {
         pdiag <- plot_diagnostics(tr, vax_label = vlab, als_label = als_label, scenario_label = scenario_label)
         fn <- file.path(diag_dir, paste0("diagnostic_", slugify(als_label), "_vax_", slugify(vlab), ".png"))
         save_png(fn, pdiag, width=3600, height=2400, res=180)
       }
-      
+
       extract_inc_total(tr) |>
         mutate(
           vax      = factor(vlab, levels = vax_order),
@@ -225,16 +263,24 @@ run_all <- function(spec_base, beta_list, scenario_label="early_booster_28d") {
 
 df_all <- run_all(spec_early28, beta_list, scenario_label="early_booster_28d")
 
-## ---------------------- observed (actual) series (ONE RUN) -----------------
-tr_obs <- traj_all(spec_early28)  
-obs_one <- extract_inc_total(tr_obs) |>
+## ---------------------- observed (actual) -----------------
+spec_base_actual <- mp_optimized_spec(calibrator, "modified")
+spec_base_actual$default$time_steps <- time_steps
+spec_base_actual <- update_beta(spec_base_actual, padded_base_beta)
+
+tr_actual <- traj_all(spec_base_actual)
+
+actual_one <- extract_inc_total(tr_actual) |>
   mutate(series = "observed")
 
-actual <- obs_one |>
-  crossing(tibble(als_scen = factor(als_levels, levels=als_levels))) |>
-  mutate(vax = factor("100%", levels = vax_order)) |>
+# replicate across ALL panels (ALS × vax) for plotting
+actual <- actual_one |>
+  tidyr::crossing(
+    als_scen = factor(als_levels, levels = als_levels),
+    vax      = factor(vax_order,  levels = vax_order)
+  ) |>
   select(date, inc, total_inc, vax, als_scen, series) |>
-  arrange(als_scen, date)
+  arrange(als_scen, vax, date)
 
 ## ---------------------- plotting frame ------------------------------------
 panel_levels <- as.vector(outer(vax_order, als_levels, FUN = \(v,a) paste0(v," Vax & ",a)))
@@ -250,21 +296,22 @@ inc_plot_df <- plot_df |> select(-total_inc)
 total_inc_plot_df <- plot_df |> select(-inc)
 
 ## --------------------------- summary table --------------------------------
-summ_tab <- inc_plot_df |>
-  filter(date <= date_end) |>
-  mutate(title = paste(vax, als_scen, sep=" - ")) |>
-  group_by(title) |>
-  summarise(
-    cumulative_infections = round(sum(inc, na.rm=TRUE)),
-    peak_infections       = round(max(inc, na.rm=TRUE)),
-    peak_date             = date[which.max(inc)],
-    .groups="drop"
-  )
-
-print(summ_tab)
-write.csv(summ_tab, csv_out, row.names = FALSE)
+# summ_tab <- inc_plot_df |>
+#   filter(date <= date_end) |>
+#   mutate(title = paste(vax, als_scen, sep=" - ")) |>
+#   group_by(title) |>
+#   summarise(
+#     cumulative_infections = round(sum(inc, na.rm=TRUE)),
+#     peak_infections       = round(max(inc, na.rm=TRUE)),
+#     peak_date             = date[which.max(inc)],
+#     .groups="drop"
+#   )
+# 
+# print(summ_tab)
+# write.csv(summ_tab, csv_out, row.names = FALSE)
 
 ## ---------------------- figure: 20-panel grid ------------------------------
+# (still big, but now plotting is the main cost, not sims)
 obs_only <- inc_plot_df |> filter(series=="observed") |>
   group_by(date, als_scen) |> summarise(inc_obs = first(inc), .groups="drop")
 
@@ -283,33 +330,33 @@ p_grid <- ggplot() +
   facet_wrap(~panel_title, nrow=4, ncol=5, scales="fixed") +
   geom_vline(xintercept = as.Date("2022-03-14"), color="black", linetype = 4, linewidth=1.0) +
   geom_vline(xintercept = as.Date("2022-05-22"), color = "purple", linetype = 4, linewidth = 1.0) +
-  scale_x_date(expand=c(0,0), date_breaks="month", date_labels="%b %d") +
+  scale_x_date(expand=c(0,0), date_breaks="2 weeks", date_labels="%b %d") +
   scale_y_continuous(labels=scales::comma) +
   scale_color_manual(values=c("Actual"="red","Counterfactual"="#2ca02c"), name=NULL) +
   labs(
-    title="Early booster schedule (−28 days): counterfactual infections vs baseline",
+    title=paste0("Early booster schedule (−", shift_days, " days): counterfactual infections vs baseline"),
     x=NULL, y="Estimated infections"
   ) +
   guides(colour = guide_legend(nrow = 1, byrow = TRUE))+
   theme_clean() +
   theme(
     axis.text.x       = element_text(size = 12, angle = 45, hjust = 1),
-    axis.text.y       = element_text(size = 20),
-    axis.title.y      = element_text(size = 25),
-    plot.title        = element_text(size = 25, hjust = 0.5, face = "plain"),
-    strip.text        = element_text(size = 25, face = "plain", hjust = 0.5),
+    axis.text.y       = element_text(size = 18),
+    axis.title.y      = element_text(size = 18),
+    plot.title        = element_text(size = 24, hjust = 0.5, face = "plain"),
+    strip.text        = element_text(size = 22, face = "plain", hjust = 0.5),
     legend.position   = "top",
     legend.direction  = "horizontal",
     legend.box        = "horizontal",
     legend.spacing.x  = unit(1.2, "cm"),
     legend.spacing.y  = unit(0.5, "cm"),
     legend.background = element_blank(),
-    legend.text       = element_text(size = 25, face = "plain"),
+    legend.text       = element_text(size = 22, face = "plain"),
     panel.spacing     = unit(1.5, "cm"),
     plot.background   = element_blank()
   )
 
-save_png(file.path(fig_dir, "early_booster_scenario.png"), p_grid, width=8000, height=5200, res=300)
+save_png(file.path(fig_dir, "early_booster_scenario.png"), p_grid, width=8000, height=5600, res=300)
 
 ## ---------------------- Figure: 2x2 ALS × vax curves (inc) -----------------
 
@@ -461,7 +508,6 @@ ppp <- ggplot() +
 
 save_png(file.path(fig_dir, "early_booster_cum.png"), ppp, width = 5500, height = 3500, res = 300)
 
-
 ## ------------------ stacked bar: totals split at Mar 14 --------------------
 cut_date <- as.Date("2022-03-14")
 
@@ -493,7 +539,7 @@ sum_df <- total_inc_plot_df |>
     type = "early boosters"
   )
 
-write.csv(sum_df, csv_bars, row.names = FALSE)
+write.csv(sum_df, csv_bar, row.names = FALSE)
 
 p_bar <- ggplot(sum_df, aes(vax, total_infections, fill=period)) +
   geom_col(width=0.75) +
@@ -503,16 +549,16 @@ p_bar <- ggplot(sum_df, aes(vax, total_infections, fill=period)) +
   guides(fill = guide_legend(order = 1, reverse = FALSE)) +
   scale_fill_manual(
     values = c(
-      "Up to March 14, 2022"    = "navy",
-      "March 15 - Dec 02, 2022" = "maroon"
+      "Up to March 14, 2022"    = "maroon",
+      "March 15 - Dec 02, 2022" = "purple"
     ),
     breaks = c("Up to March 14, 2022", "March 15 - Dec 02, 2022"),
     name = NULL
   ) +
   labs(
-    title="Early booster schedule: total infections by ALS scenario and vaccination rate",
-    x="Vaccination rate", y="Total infections (people)", fill=NULL
-  ) +
+        title="Early booster schedule: total infections by ALS scenario and vaccination rate",
+        x="Vaccination rate", y="Total infections (people)", fill=NULL
+      ) +
   guides(colour = guide_legend(nrow = 1, byrow = TRUE))+
   theme_clean() +
   theme(
@@ -535,3 +581,4 @@ p_bar <- ggplot(sum_df, aes(vax, total_infections, fill=period)) +
   )
 
 save_png(file.path(fig_dir, "early_booster_bar.png"), p_bar, width = 6500, height = 3200, res = 300)
+

@@ -47,12 +47,6 @@ upper_plot_time = 300
 sim_horizon = 500
 date0 = as.Date("2021-12-15")
 
-## convert cumulative to weekly incidence
-#fitserodata = (seroprevdata 
-#	|> mutate(value = timevar_spec$default$N * (value - dplyr::lag(value)) / 7)
-#	|> mutate(matrix = "inc")
-#)
-
 # construct spline basis for beta(t)
 if (spline_beta) {
   basis_cols = 11
@@ -270,11 +264,6 @@ post_on_logit <- function(est, se) {
 }
 
 # ----------------------- prior specs (edit as needed) -----------------------
-# beta and time_var_beta as you defined:
-# log_beta ~ Normal(log(0.25), log_sd = log(1))
-# time_var_beta ~ Normal(0, log_sd = log(1))
-#
-# For dstr_prms_sd_nR: I don't know your prior; set it here correctly.
 prior_spec <- tibble::tibble(
   mat = c("beta", "time_var_beta", "dstr_prms_sd_nR"),
   prior_mean  = c(log(0.25), 0, log(0.1)),

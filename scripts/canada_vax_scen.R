@@ -11,7 +11,7 @@ set.seed(2025)
 options(macpan2_log_dir = ".")
 loadEnvironments()
 options(dplyr.summarise.inform = FALSE)
-options(scipen = 9999999999)
+options(scipen = 9999)
 
 ## --------------------------- config ---------------------------------------
 date0       <- as.Date("2021-12-17")
@@ -21,9 +21,9 @@ offset0     <- 150
 sim_horizon <- 500
 
 fig_dir  <- "../figures"
-diag_dir <- file.path(fig_dir, "national_vax_rate_diagnostics")
-csv_out  <- "../output/natl_vax_rate_summary.csv"
-csv_bars <- "../output/natl_vax_rate_bar.csv"
+diag_dir <- file.path(fig_dir, "can_natl_vax_rate_diagnostics")
+csv_out  <- "../output/can_natl_vax_rate_summary.csv"
+csv_bars <- "../output/can_natl_vax_rate_bar.csv"
 
 ## --------------------------- io helpers -----------------------------------
 ensure_dir <- function(path) {
@@ -59,15 +59,22 @@ padded_beta_cf_ALS2 <- rdsRead("beta_als2")
 padded_beta_cf_ALS4 <- rdsRead("beta_als4")
 
 # ## ------------------------- national vaccination data (canada) -----------------------
-double_daily_vac  <- can |> dplyr::filter(type == "numtotal_fully")
-booster_daily_vac <- can |> dplyr::filter(type == "numtotal_additional")
+double_daily_vac  <- vax_early_at_can_rate |> dplyr::filter(type == "numtotal_fully")
+booster_daily_vac <- vax_early_at_can_rate |> dplyr::filter(type == "numtotal_additional")
 
-double_vac_changepoints <- double_daily_vac$days - (offset0 %% 7) - 1
+# double_vac_values       <- double_daily_vac$daily_rate
+# booster_vac_values       <- booster_daily_vac$daily_rate
+
+double_vac_changepoints <- double_daily_vac$days #- (offset0 %% 7) - 1
 double_vac_values       <- double_daily_vac$daily_rate
 
-booster_vac_changepoints <- booster_daily_vac$days - (offset0 %% 7) - 1
+booster_vac_changepoints <- booster_daily_vac$days #- (offset0 %% 7) - 1
 booster_vac_values       <- booster_daily_vac$daily_rate
 
+if (!any(double_vac_changepoints == 0)) {
+  double_vac_changepoints <- c(0, double_vac_changepoints)
+  double_vac_values       <- c(0, double_vac_values)
+}
 if (!any(booster_vac_changepoints == 0)) {
   booster_vac_changepoints <- c(0, booster_vac_changepoints)
   booster_vac_values       <- c(0, booster_vac_values)
@@ -78,13 +85,36 @@ spec_fixed <- mp_optimized_spec(calibrator, "modified")
 can_spec   <- spec_fixed
 
 # -------------- apply national vax rate to model spec-------------------------
+update_vac_values <- function(spec,
+                                       new_double_vals = NULL,
+                                       new_booster_vals = NULL) {
+
+  if (!is.null(new_double_vals)) {
+    spec_v2 <- spec$default$double_vac_values
+    k <- min(length(new_double_vals), length(spec_v2))
+    spec_v2[seq_len(k)] <- as.numeric(new_double_vals[seq_len(k)])
+    spec <- spec |>
+      mp_tmb_insert(default = list(double_vac_values = spec_v2))
+  }
+
+  if (!is.null(new_booster_vals)) {
+    spec_v3 <- spec$default$booster_vac_values
+    k <- min(length(new_booster_vals), length(spec_v3))
+    spec_v3[seq_len(k)] <- as.numeric(new_booster_vals[seq_len(k)])
+    spec <- spec |>
+      mp_tmb_insert(default = list(booster_vac_values = spec_v3))
+  }
+
+  spec
+}
+
+can_spec <- update_vac_values(can_spec, double_vac_values, booster_vac_values)
+
 if (is.null(can_spec$default$double_vac_values_base)) {
-  can_spec$default$double_vac_values_base        <- double_vac_values
-  can_spec$default$double_vac_changepoints_base  <- double_vac_changepoints
+  can_spec$default$double_vac_values_base <- can_spec$default$double_vac_values
 }
 if (is.null(can_spec$default$booster_vac_values_base)) {
-  can_spec$default$booster_vac_values_base       <- booster_vac_values
-  can_spec$default$booster_vac_changepoints_base <- booster_vac_changepoints
+  can_spec$default$booster_vac_values_base <- can_spec$default$booster_vac_values
 }
 
 ## ------------------------- variables --------------------------------------
@@ -106,6 +136,9 @@ beta_list <- list(
 
 ## ---------------------- scaling vaccination --------------------------------
 set_vax <- function(spec, scale = 1.0) {
+  if (is.null(spec$default$double_vac_values_base))  spec$default$double_vac_values_base  <- spec$default$double_vac_values
+  if (is.null(spec$default$booster_vac_values_base)) spec$default$booster_vac_values_base <- spec$default$booster_vac_values
+  
   spec$default$double_vac_values  <- scale * spec$default$double_vac_values_base
   spec$default$booster_vac_values <- scale * spec$default$booster_vac_values_base
   spec
@@ -139,7 +172,7 @@ extract_inc_total <- function(tr) {
 
 plot_diagnostics <- function(tr, vax_label, als_label, scenario_label) {
   df <- tr |> dplyr::filter(matrix %in% c(state_var,"total_inc"))
-  
+
   ggplot(df, aes(date, value)) +
     geom_line(linewidth = 0.4) +
     facet_wrap(~matrix, scales="free", ncol=4) +
@@ -194,22 +227,22 @@ plot_diagnostics <- function(tr, vax_label, als_label, scenario_label) {
 diag_keep <- c("0%","25%","50%", "75%","100%")  # or character(0) to skip all
 
 run_all <- function(spec_base, beta_list, scenario_label="vax@national_rate") {
-  
+
   purrr::imap_dfr(beta_list, function(beta_vec, als_label) {
-    
-    spec_beta <- update_beta(spec_base, beta_vec)  
-    
+
+    spec_beta <- update_beta(spec_base, beta_vec)
+
     purrr::imap_dfr(vax_scales, function(scale_val, vlab) {
-      
+
       spec_cf <- set_vax(spec_beta, scale_val)
       tr <- traj_all(spec_cf)
-      
+
       if (vlab %in% diag_keep) {
         pdiag <- plot_diagnostics(tr, vax_label = vlab, als_label = als_label, scenario_label = scenario_label)
         fn <- file.path(diag_dir, paste0("diagnostic_", slugify(als_label), "_vax_", slugify(vlab), ".png"))
         save_png(fn, pdiag, width=3600, height=2400, res=180)
       }
-      
+
       extract_inc_total(tr) |>
         mutate(
           vax      = factor(vlab, levels = vax_order),
@@ -225,7 +258,7 @@ run_all <- function(spec_base, beta_list, scenario_label="vax@national_rate") {
 df_all <- run_all(can_spec, beta_list, scenario_label="vax@national_rate")
 
 ## ---------------------- observed (actual) series (ONE RUN) -----------------
-tr_obs <- traj_all(spec_fixed) 
+tr_obs <- traj_all(spec_fixed)
 obs_one <- extract_inc_total(tr_obs) |>
   mutate(series = "observed")
 
@@ -249,22 +282,20 @@ inc_plot_df <- plot_df |> select(-total_inc)
 total_inc_plot_df <- plot_df |> select(-inc)
 
 ## --------------------------- summary table --------------------------------
-summ_tab <- inc_plot_df |>
-  filter(date <= date_end) |>
-  mutate(title = paste(vax, als_scen, sep=" - ")) |>
-  group_by(title) |>
-  summarise(
-    cumulative_infections = round(sum(inc, na.rm=TRUE)),
-    peak_infections       = round(max(inc, na.rm=TRUE)),
-    peak_date             = date[which.max(inc)],
-    .groups="drop"
-  )
-
-print(summ_tab)
-write.csv(summ_tab, csv_out, row.names = FALSE)
+# summ_tab <- inc_plot_df |>
+#   filter(date <= date_end) |>
+#   mutate(title = paste(vax, als_scen, sep=" - ")) |>
+#   group_by(title) |>
+#   summarise(
+#     cumulative_infections = round(sum(inc, na.rm=TRUE)),
+#     peak_infections       = round(max(inc, na.rm=TRUE)),
+#     peak_date             = date[which.max(inc)],
+#     .groups="drop"
+#   )
+# 
+# write.csv(summ_tab, csv_out, row.names = FALSE)
 
 ## ---------------------- figure: 20-panel grid ------------------------------
-# (still big, but now plotting is the main cost, not sims)
 obs_only <- inc_plot_df |> filter(series=="observed") |>
   group_by(date, als_scen) |> summarise(inc_obs = first(inc), .groups="drop")
 
@@ -309,7 +340,7 @@ p_grid <- ggplot() +
     plot.background   = element_blank()
   )
 
-save_png(file.path(fig_dir, "natl_vax_rate_scenario.png"), p_grid, width=8000, height=5600, res=300)
+save_png(file.path(fig_dir, "can_natl_vax_rate_scenario.png"), p_grid, width=8000, height=5600, res=300)
 
 ## ---------------------- Figure: 2x2 ALS × vax curves (inc) -----------------
 
@@ -388,7 +419,7 @@ pp <- ggplot() +
     strip.background  = element_blank()
   )
 
-save_png(file.path(fig_dir, "natl_vax_rate_scen1.png"), pp, width = 5500, height = 3500, res = 300)
+save_png(file.path(fig_dir, "can_natl_vax_rate_scen1.png"), pp, width = 5500, height = 3500, res = 300)
 
 ## ---------------------- Figure: 2x2 ALS × vax curves (total_inc) -----------
 
@@ -459,7 +490,7 @@ ppp <- ggplot() +
     strip.background  = element_blank()
   )
 
-save_png(file.path(fig_dir, "natl_vax_rate_cum.png"), ppp, width = 5500, height = 3500, res = 300)
+save_png(file.path(fig_dir, "can_natl_vax_rate_cum.png"), ppp, width = 5500, height = 3500, res = 300)
 
 
 ## ------------------ stacked bar: totals split at Mar 14 --------------------
@@ -534,4 +565,4 @@ p_bar <- ggplot(sum_df, aes(vax, total_infections, fill=period)) +
     panel.grid.major.x = element_blank()
   )
 
-save_png(file.path(fig_dir, "natl_vax_rate_bar.png"), p_bar, width = 6500, height = 3200, res = 300)
+save_png(file.path(fig_dir, "can_natl_vax_rate_bar.png"), p_bar, width = 6500, height = 3200, res = 300)
