@@ -3,9 +3,6 @@ library(ggplot2)
 library(dplyr)
 library(shellpipes)
 
-## We want to create a new specs without splines and simulate
-## the trajectories by inputing our own time series of beta_t
-
 stepkeep <- 149
 
 dat = rdsRead("build_multipliers")

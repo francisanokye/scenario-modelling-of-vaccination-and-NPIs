@@ -19,7 +19,7 @@ if (packageVersion("macpan2") < "2.5.0") {
 # 
 # # set seed and options
 set.seed(2025)
-options(scipen = 9999999999)
+options(scipen = 9999)
 options(macpan2_log_dir = ".")
 loadEnvironments()
 conflicted::conflicts_prefer(dplyr::filter)
@@ -66,15 +66,15 @@ if (spline_beta) {
 
 # prior constructor
 get_prior = function(trans) function(rng) {
-  mp_normal(
+  mp_norm(
     (trans(rng[1]) + trans(rng[2])) / 2
     , log((trans(rng[2]) - trans(rng[1])) / (2 * 1.96))
   )
 }
 
 # define priors
-priors = list(log_beta = mp_normal(log(0.25), log(1))
-              , time_var_beta = mp_normal(0, log(1))
+priors = list(log_beta = mp_norm(log(0.25), log(1))
+              , time_var_beta = mp_norm(0, log(1))
               , log_gamma_a = get_prior(log)(prior_range$gamma_a)
               , log_gamma_i = get_prior(log)(prior_range$gamma_i)
               , logit_kappa2 = get_prior(qlogis)(prior_range$kappa2)
@@ -91,7 +91,7 @@ calibrator = mp_tmb_calibrator(
             |> mutate(matrix = "log_newR", value = log(value))
   )
   , time = mp_sim_bounds(1, time_steps)
-  , traj = list(log_newR = mp_normal(sd = mp_fit(0.1)))
+  , traj = list(log_newR = mp_norm(sd = mp_fit(0.1)))
   , par = priors
   , outputs = c("log_beta_thing", "log_inc", "log_newR","logit_serop_total")
 )
@@ -111,14 +111,14 @@ lim_dat = \(x) dplyr::filter(x, time <= upper_plot_time)
 
 # plot observed and fitted incidence
 trajs <- (ggplot()
-      + geom_point(aes(time, value), data = lim_dat(seroprevdata))
-      + geom_point(aes(time, value), data = lim_dat(fitserodata))
-      + geom_line(aes(time, value), linewidth = 1, data = lim_dat(sims),color="red")
-      + geom_ribbon(aes(x = time, ymin = conf.low, ymax = conf.high), alpha = 0.4, data = lim_dat(sims))
-      + facet_wrap(~matrix, scales = "free", ncol = 1)
-      + scale_y_continuous(name = "")
-      + scale_x_continuous(limits = c(offset0, upper_plot_time))
-      + theme_bw()
+          + geom_point(aes(time, value), data = lim_dat(seroprevdata))
+          + geom_point(aes(time, value), data = lim_dat(fitserodata))
+          + geom_line(aes(time, value), linewidth = 1, data = lim_dat(sims),color="red")
+          + geom_ribbon(aes(x = time, ymin = conf.low, ymax = conf.high), alpha = 0.4, data = lim_dat(sims))
+          + facet_wrap(~matrix, scales = "free", ncol = 1)
+          + scale_y_continuous(name = "")
+          + scale_x_continuous(limits = c(offset0, upper_plot_time))
+          + theme_bw()
 )
 
 png("../figures/fitted_trajs.png", width = 4500, height = 2500, res = 300, bg = "white", type = "cairo")
@@ -138,33 +138,6 @@ print(calibrator
       + theme_bw()
 )
 
-# prepare vaccination data for plotting
-remade_vax_data = (list(
-  double_vac = data.frame(
-    time = timevar_spec$integers$double_vac_changepoints
-    , value = timevar_spec$default$double_vac_values
-  )
-  , booster_shot = data.frame(
-    time = timevar_spec$integers$booster_vac_changepoints
-    , value = timevar_spec$default$booster_vac_values
-  )
-) 
-|> bind_rows(.id = "matrix")
-)
-
-# plot vaccination coverage over time
-print(calibrator
-      |> mp_optimized_spec("modified")
-      |> mp_simulator(time_steps, outputs = c("double_vac","booster_shot"))
-      |> mp_trajectory()
-      |> lim_dat()
-      |> ggplot()
-      + aes(time, value)
-      + geom_line()
-      + geom_point(data = remade_vax_data)
-      + facet_wrap(~matrix, scales = "free")
-      + theme_bw()
-)
 
 # extract fitted coefficients
 model_estimates = mp_tmb_coef(calibrator, conf.int = TRUE) |> dplyr::select(-term, -col, -type) |> mutate(mat = abbreviate(mat, minlength = 15))
@@ -251,7 +224,7 @@ prior_from_range <- function(rng, trans) {
   sd <- exp(log_sd)
   list(mu = mu, sd = sd)
 }
-prior_from_mp_normal <- function(mean, log_sd) list(mu = mean, sd = exp(log_sd))
+prior_from_mp_norm <- function(mean, log_sd) list(mu = mean, sd = exp(log_sd))
 
 # posterior approx on transformed scale (delta method)
 post_on_log <- function(est, se) {
@@ -388,59 +361,59 @@ posterior
 dev.off()
 
 actual_diagnostic = (calibrator
-     |> mp_optimized_spec("modified")
-     |> mp_simulator(sim_horizon, outputs = c(mp_state_vars(timevar_spec), "total_inc"))
-     |> mp_trajectory()
-     |> dplyr::mutate(date = date0 + (time - offset0))
-     |> ggplot() +
-       # shaded window: time 0 to offset0
-       geom_rect(
-         data = data.frame(
-           xmin = date0 - offset0,
-           xmax = date0
-         ),
-         aes(xmin = xmin, xmax = xmax, ymin = -Inf, ymax = Inf),
-         inherit.aes = FALSE,
-         fill = "grey30", alpha = 0.25
-       ) +
-       geom_vline(
-         xintercept = date0 + (231 - offset0),
-         color = "black",
-         linetype = 4,
-         linewidth = 1.0
-       ) +
-       geom_vline(
-         xintercept = date0 + (300 - offset0),
-         colour = "purple",
-         linetype = 4,
-         linewidth = 1.5
-       ) +
-       aes(date, value) +
-       geom_line() +
-       labs(
-         title = "Diagnostic compartment trajectories (Actual)"
-       ) +
-       scale_x_date(expand = c(0, 0), date_breaks = "month", date_labels = "%b %d %Y") +
-       facet_wrap(~matrix, scales = "free") +
-       theme_clean() +
-       theme(
-         axis.text.x       = element_text(size = 12,  hjust = 1, angle = 45, margin = margin(t = 8)),
-         axis.text.y       = element_text(size = 18),
-         axis.title.x      = element_text(size = 18),
-         axis.title.y      = element_text(size = 18),
-         plot.title        = element_text(size = 24, hjust = 0.5, face = "plain"),
-         strip.text        = element_text(size = 22, face = "plain", hjust = 0.5),
-         strip.background  = element_blank(),
-         legend.position   = "top",
-         legend.direction  = "horizontal",
-         legend.box        = "horizontal",
-         legend.spacing.x  = unit(1.2, "cm"),
-         legend.spacing.y  = unit(0.5, "cm"),
-         legend.background = element_blank(),
-         legend.text       = element_text(size = 22, face = "plain"),
-         panel.spacing     = unit(1.5, "cm"),
-         plot.background   = element_blank()
-       )
+                     |> mp_optimized_spec("modified")
+                     |> mp_simulator(sim_horizon, outputs = c(mp_state_vars(timevar_spec), "total_inc", "inc"))
+                     |> mp_trajectory()
+                     |> dplyr::mutate(date = date0 + (time - offset0))
+                     |> ggplot() +
+                       # shaded window: time 0 to offset0
+                       geom_rect(
+                         data = data.frame(
+                           xmin = date0 - offset0,
+                           xmax = date0
+                         ),
+                         aes(xmin = xmin, xmax = xmax, ymin = -Inf, ymax = Inf),
+                         inherit.aes = FALSE,
+                         fill = "grey30", alpha = 0.25
+                       ) +
+                       geom_vline(
+                         xintercept = date0 + (231 - offset0),
+                         color = "black",
+                         linetype = 4,
+                         linewidth = 1.0
+                       ) +
+                       geom_vline(
+                         xintercept = date0 + (300 - offset0),
+                         colour = "purple",
+                         linetype = 4,
+                         linewidth = 1.5
+                       ) +
+                       aes(date, value) +
+                       geom_line() +
+                       labs(
+                         title = "Diagnostic compartment trajectories (Actual)"
+                       ) +
+                       scale_x_date(expand = c(0, 0), date_breaks = "month", date_labels = "%b %d %Y") +
+                       facet_wrap(~matrix, scales = "free") +
+                       theme_clean() +
+                       theme(
+                         axis.text.x       = element_text(size = 12,  hjust = 1, angle = 45, margin = margin(t = 8)),
+                         axis.text.y       = element_text(size = 18),
+                         axis.title.x      = element_text(size = 18),
+                         axis.title.y      = element_text(size = 18),
+                         plot.title        = element_text(size = 24, hjust = 0.5, face = "plain"),
+                         strip.text        = element_text(size = 22, face = "plain", hjust = 0.5),
+                         strip.background  = element_blank(),
+                         legend.position   = "top",
+                         legend.direction  = "horizontal",
+                         legend.box        = "horizontal",
+                         legend.spacing.x  = unit(1.2, "cm"),
+                         legend.spacing.y  = unit(0.5, "cm"),
+                         legend.background = element_blank(),
+                         legend.text       = element_text(size = 22, face = "plain"),
+                         panel.spacing     = unit(1.5, "cm"),
+                         plot.background   = element_blank()
+                       )
 )
 
 fn <- file.path(diag_dir,paste0("diagnostic_", "actual",".png"))
@@ -451,6 +424,5 @@ dev.off()
 
 # save fitted calibrator
 rdsSave(calibrator)
-
 
 

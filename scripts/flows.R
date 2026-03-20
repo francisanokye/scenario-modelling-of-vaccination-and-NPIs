@@ -35,6 +35,6 @@ flows <- list(foi ~ beta * (zeta * (A1 + A2 + A3) + (I1 + I2 + I3)) / N
               , serop_total ~ R / N
               , beta_thing ~ beta
               , total_inc ~ R1 + R2 + R3
-              )
+)
 
 saveVars(flows)

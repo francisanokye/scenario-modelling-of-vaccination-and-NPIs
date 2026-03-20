@@ -3,8 +3,8 @@ library(macpan2)
 library(dplyr)
 library(zoo)
 library(shellpipes)
+library(tidyverse)
 loadEnvironments()
-
 
 double_daily_vac = nl_additional |> dplyr::filter(type == "numtotal_fully")
 booster_daily_vac = nl_additional |> dplyr::filter(type == "numtotal_additional")
@@ -28,19 +28,20 @@ spec <- mp_tmb_model_spec(
   , default = params
 )
 
-# we create a piecewise time-varying vaccination rate based on true data
+# we create a piece-wise time-varying vaccination rate based on true data
 double_vac_changepoints = double_daily_vac$days - (offset0 %% 7) - 1
 double_vac_values = double_daily_vac$daily_rate
 
-booster_vac_changepoints = booster_daily_vac$days - (offset0 %% 7) - 1
+booster_vac_changepoints = booster_daily_vac$days - (booster_offset %% 7) - 1
 booster_vac_values = booster_daily_vac$daily_rate
 if (!any(booster_vac_changepoints == 0)) {
   booster_vac_changepoints = c(0, booster_vac_changepoints)
   booster_vac_values = c(0, booster_vac_values)
 }
 
-expr2 = list(vac2 ~ time_var(double_vac_values, double_vac_changepoints))
-expr3 = list(vac3 ~ time_var(booster_vac_values, booster_vac_changepoints))
+# expressions
+expr2 <- list(vac2 ~ time_var(double_vac_values, double_vac_changepoints))
+expr3 <- list(vac3 ~ time_var(booster_vac_values, booster_vac_changepoints))
 
 # update model specification to reflect the vaccination rates from data
 timevar_spec <- spec |> mp_tmb_insert(
@@ -55,7 +56,5 @@ timevar_spec = mp_tmb_insert(timevar_spec
                              , at = Inf
                              , expressions = list(newR ~ newR_total)
 )
-
-timevar_spec$integers$double_vac_changepoints
 
 rdsSave(timevar_spec)
