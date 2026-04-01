@@ -244,6 +244,70 @@ vax_cols <- c(
   "Faster rate"               = "orange"
 )
 
+
+booster_shot_facets <- final_results_df |>
+  filter(matrix == "booster_shot" & policy == "Actual ALS" & date <= analysis_end) |>
+  # Ensure data is ordered correctly for the cumulative sum
+  arrange(vax_scenario, policy, date) |> 
+  group_by(vax_scenario, policy) |>
+  #mutate(cum_pct = value) |>
+  
+  mutate(cum_pct = (cumsum(value) / 510550) * 100) |>
+  ungroup() |>
+  ggplot(aes(x = date, y = cum_pct, colour = vax_scenario, group = vax_scenario)) +
+  geom_line(linewidth = 1.1) +
+  geom_point(size = 1.1) +
+  facet_wrap(~ policy, ncol = 3, scales = "fixed") +
+  scale_color_manual(values = vax_cols, breaks = vax_order, drop = FALSE) +
+  scale_x_date(
+    date_breaks = "1 month", 
+    date_labels = "%b %Y",
+    expand = c(0, 0)
+  ) +
+  geom_vline(
+    xintercept = as.Date("2022-03-14"),
+    colour = "brown",
+    linetype = "dashed",
+    linewidth = 1.2
+  ) +
+  # Fixed the scales error here:
+  scale_y_continuous(labels = scales::label_number(suffix = "%")) + 
+  labs(
+    title = "Cumulative Booster Uptake by Policy and Scenario",
+    x = NULL,
+    y = "Cumulative Coverage (%)",
+    colour = NULL
+  ) +
+  theme_clean() +
+  theme(
+    axis.text.x = element_text(size = 15, hjust = 1, angle = 45),
+    axis.text.y = element_text(size = 25),
+    axis.title.y = element_text(size = 25, color = "black"),
+    strip.text = element_text(size = 25),
+    strip.background = element_rect(fill = "gray"),
+    legend.position = "bottom",
+    legend.justification = "center",
+    legend.direction = "horizontal",
+    legend.box = "horizontal",
+    legend.box.just = "center",
+    legend.title = element_blank(),
+    legend.text = element_text(size = 25),
+    legend.background = element_blank(),
+    legend.spacing.x = unit(0.35, "cm"),
+    legend.margin = margin(t = 8, r = 8, b = 8, l = 8),
+    plot.title = element_text(size = 35, face = "plain", hjust = 0.5),
+    plot.background = element_blank(),
+    panel.grid.major.x = element_blank(),
+    panel.spacing = unit(2, "cm")
+  )
+
+print(booster_shot_facets)
+
+png("../figures/booster_shots_policy.png", width = 6000, height = 2500, res = 300, bg = "white")
+print(booster_shot_facets)
+dev.off()
+
+
 # ------------------------------------------------------------
 # incidence plot for all policies
 # ------------------------------------------------------------
