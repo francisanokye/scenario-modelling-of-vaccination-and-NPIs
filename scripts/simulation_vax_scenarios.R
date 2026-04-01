@@ -208,7 +208,7 @@ for (i in seq_len(n_sims)) {
 # Simulate
 for (i in seq_len(n_sims)) {
   all_sim_results[[i]] <- spec_list[[i]] |>
-    mp_simulator(time_steps = sim_horizon, outputs = c("inc", "total_inc")) |>
+    mp_simulator(time_steps = sim_horizon, outputs = c("inc", "total_inc", "booster_shot")) |>
     mp_trajectory() |>
     mutate(
       date = date0 + (time - booster_offset),
