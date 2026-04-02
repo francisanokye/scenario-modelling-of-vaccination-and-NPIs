@@ -59,7 +59,8 @@ policy_df <- base_df |>
   )
 
 # multipliers (rebased so no-als = 1)
-R_ALS4 <- 1.91; R_ALS3 <- 2.03; R_NoALS <- 2.26; R_open <- 2.17; R_closed <- 1.49; R_ALS2 <- sqrt(R_ALS3 * R_NoALS)
+#R_ALS4 <- 1.91; R_ALS3 <- 2.03; R_NoALS <- 2.26; R_open <- 2.17; R_closed <- 1.49; R_ALS2 <- sqrt(R_ALS3 * R_NoALS)
+R_ALS4 <- 2.23; R_ALS3 <- 2.74; R_NoALS <- 3.0; R_open <- 2.71; R_closed <- 1.98; R_ALS2 <- sqrt(R_ALS3 * R_NoALS)
 m_als    <- c(ALS4 = R_ALS4/R_NoALS, ALS3 = R_ALS3/R_NoALS, ALS2 = R_ALS2/R_NoALS, NoALS = 1.00)
 m_school <- c(open = 1.0,  closed = R_closed/R_open)
 
@@ -117,11 +118,16 @@ noals_start <- df_est %>%
   pull(start)
 
 df_est <- df_est %>%
-  dplyr::mutate(
-    m_scen_ALS2  = if_else(date < noals_start + 1, k_ALS["ALS2"] * m_school_hat, m_school_hat),
-    m_scen_ALS4  = if_else(date < noals_start,     k_ALS["ALS4"] * m_school_hat, m_school_hat),
+  mutate(
+    # Create the weight for the transition (0 to 1)
+    s_trans = plogis(as.numeric(date - noals_start) / tau_days),
+    
+    # Smoothly transition from ALS multiplier to 1.0
+    m_scen_ALS2  = (k_ALS["ALS2"] * (1 - s_trans) + 1.0 * s_trans) * m_school_hat,
+    m_scen_ALS4  = (k_ALS["ALS4"] * (1 - s_trans) + 1.0 * s_trans) * m_school_hat,
     m_scen_NoALS = k_ALS["NoALS"] * m_school_hat,
     
+    # Now calculate your betas
     beta_cf_ALS2  = beta0_hat * m_scen_ALS2,
     beta_cf_ALS4  = beta0_hat * m_scen_ALS4,
     beta_cf_NoALS = beta0_hat * m_scen_NoALS

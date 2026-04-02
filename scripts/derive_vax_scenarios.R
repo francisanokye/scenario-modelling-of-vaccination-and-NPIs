@@ -20,19 +20,20 @@ NL_POP           <- 510550
 CA_POP           <- 36991981
 eligible_pop <- 426198
 
-init_date      <- as.Date("2021-07-24")   # common model clock origin
+init_date      <- as.Date("2021-07-24")   
 booster_start  <- as.Date("2021-11-08")
 backlog_end    <- as.Date("2022-01-11")
 cutoff_date    <- as.Date("2022-02-07")
 analysis_start <- as.Date("2021-12-15")
 analysis_end   <- as.Date("2022-05-22")
-study_end      <- as.Date("2022-05-22")   # keep rollout scenarios only over model study window
+study_end      <- as.Date("2022-05-22")   
+booster_offset <- 150
 
 target_date       <- as.Date("2022-01-11")
 target_cumulative <- 106730
 shape_power       <- 1.8
 
-day0 <- as.Date("2021-12-17") - lubridate::days(107)
+day0 <- as.Date("2021-12-17") - lubridate::days(booster_offset)
 
 clip01 <- function(x) pmin(pmax(x, 0), 1)
 

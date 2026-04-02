@@ -49,10 +49,10 @@ fitserodata        <- rdsRead("fitsero.rds")
 padded_beta_noals  <- rdsRead("policy_neutral")
 padded_beta_base   <- rdsRead("base_beta")
 padded_beta_als4   <- rdsRead("beta_als4")
-booster_offset <- 107
+booster_offset <- 150#107
 sim_horizon <- 500
 
-# V2_init <-  234,600 ## nl
+# V2_init <-  234,600 ## nl   
 # V2_init <-  277,707 ## natl
 
 new_V2_init <- 277707 # use this nationa rate
@@ -246,7 +246,7 @@ vax_cols <- c(
 
 
 booster_shot_facets <- final_results_df |>
-  filter(matrix == "booster_shot" & policy == "Actual ALS" & date <= analysis_end) |>
+  filter(matrix == "booster_shot" & date <= analysis_end) |> #  & policy == "Actual ALS" 
   # Ensure data is ordered correctly for the cumulative sum
   arrange(vax_scenario, policy, date) |> 
   group_by(vax_scenario, policy) |>
@@ -768,8 +768,6 @@ p_heat_relative_enhanced <- ggplot(
     plot.tag = element_text(size = 35, face = "bold", colour = "black"),
     plot.tag.position = c(0.01, 0.98)
   )
-
-print(p_heat_relative_enhanced)
 
 # ============================================================
 # OPTIONAL combined figure

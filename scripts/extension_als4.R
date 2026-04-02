@@ -57,7 +57,7 @@ padded_beta_ALS4_120days <- rdsRead("beta_ALS4_120days")
 padded_beta_ALS4_150days <- rdsRead("beta_ALS4_150days")
 padded_beta_ALS4_180days <- rdsRead("beta_ALS4_180days")
 
-booster_offset <- 107
+booster_offset <- 150
 sim_horizon    <- 500
 day0           <- as.Date("2021-11-08") - lubridate::days(booster_offset)
 date0          <- as.Date("2021-12-15")
@@ -302,7 +302,7 @@ p_peak_lines <- ggplot(
     yintercept = threshold,
     color = "red",
     linetype = 2.5,
-    linewidth = 2
+    linewidth = 3
   ) +
   geom_point(
     data = cross_df |> filter(!is.na(cross_day)),
@@ -324,9 +324,9 @@ p_peak_lines <- ggplot(
   geom_text(
     data = cross_df |> filter(!is.na(cross_day)),
     aes(x = cross_day, y = cross_peak, label = cross_lab, color = vax_scenario),
-    vjust = 6,
+    vjust = 5,
     hjust = 0.5,
-    size = 7,
+    size = 9,
     inherit.aes = FALSE,
     show.legend = FALSE
   ) +
