@@ -27,6 +27,7 @@ cutoff_date    <- as.Date("2022-02-07")
 analysis_start <- as.Date("2021-12-15")
 analysis_end   <- as.Date("2022-05-22")
 study_end      <- as.Date("2022-05-22")   
+earlier_vax_date <- as.Date("2021-10-04")
 booster_offset <- 150
 
 target_date       <- as.Date("2022-01-11")
@@ -48,8 +49,7 @@ can_lower_init <- ca_weekly_pts |>
 
 # bind this the other scenarios after they are created in line 
 canada_weekly_vax_nl <- can_weekly_nl_inputs |> select(week_end, weekly_rate)|> 
-  mutate(days = as.numeric(week_end - day0), 
-         scenario = "National Rate")|> 
+  mutate(days = as.numeric(week_end - day0), scenario = "National Rate")|> 
   select(scenario, week_end, weekly_rate)
 
 
@@ -66,7 +66,7 @@ df_raw <- dat |>
   ) |>
   select(week_end, numtotal_additional) |>
   rename(value = numtotal_additional) |>
-  filter(week_end >= booster_start, week_end <= as.Date("2022-06-19")) |>
+  filter(week_end >= earlier_vax_date, week_end <= as.Date("2022-06-19")) |>
   arrange(week_end)
 
 # ============================================================
@@ -396,7 +396,6 @@ p2 <- ggplot(daily_scenarios_df |> filter(date <= as.Date("2022-05-22")),aes(x =
       plot.tag.position = c(0.01, 0.98)
     )
 
-# 
 p3 <- ggplot(weekly_scenarios_df, aes(x = week_end, y = weekly_rate, color = scenario)) +
   geom_line(linewidth = 1) +
   geom_point(size = 1.8) +

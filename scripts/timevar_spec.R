@@ -5,9 +5,20 @@ library(zoo)
 library(shellpipes)
 library(tidyverse)
 loadEnvironments()
+booster_offset <- 150
+day0 <- as.Date("2021-11-08") - lubridate::days(booster_offset)
 
 double_daily_vac = nl_additional |> dplyr::filter(type == "numtotal_fully")
-booster_daily_vac = nl_additional |> dplyr::filter(type == "numtotal_additional")
+#booster_daily_vac = nl_additional |> dplyr::filter(type == "numtotal_additional")
+
+booster_daily_vac <- weekly_scenarios_df |>
+  dplyr::filter(scenario == "Actual Boosters") |>
+  dplyr::select(week_end, scenario, weekly_rate) |>
+  mutate(
+    daydiff = as.numeric(week_end - lag(week_end, default = week_end[1] - 7)),
+    daily_rate = weekly_rate / daydiff,
+    days = as.numeric(week_end - day0)
+  ) 
 
 reporting_delay <- TRUE
 

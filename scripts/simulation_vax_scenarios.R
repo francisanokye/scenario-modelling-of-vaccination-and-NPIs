@@ -21,7 +21,8 @@ options(scipen = 9999)
 # ============================================================
 # CONFIG
 # ============================================================
-init_date      <- as.Date("2021-07-24")   
+init_date      <- as.Date("2021-07-24") 
+booster_start  <- as.Date("2021-11-08")
 analysis_start <- as.Date("2021-12-15")
 analysis_end   <- as.Date("2022-05-22")
 cut_date       <- as.Date("2022-03-14")
@@ -55,7 +56,7 @@ sim_horizon <- 500
 # V2_init <-  234,600 ## nl   
 # V2_init <-  277,707 ## natl
 
-new_V2_init <- 277707 # use this nationa rate
+new_V2_init <- 277707 # use this national rate
 
 day0 <- as.Date("2021-11-08") - lubridate::days(booster_offset)
 date0 <- as.Date("2021-12-15")
@@ -137,8 +138,8 @@ time_steps <- spec_fixed$default$time_steps
 # ------------------------------------------------------------
 vax_scenario_specs <- list(
   "Actual Boosters"           = spec_fixed,
-  "Slower Rate"          = spec_slower,
-  "Faster Rate"          = spec_faster,
+  "Slower Rate"               = spec_slower,
+  "Faster Rate"               = spec_faster,
   "Early Boosters (-35 Days)" = spec_early,
   "National Rate"             = spec_natl
 )
@@ -194,21 +195,18 @@ for (i in seq_len(n_sims)) {
   policy_name <- sim_grid$policy_name[i]
   vax_name    <- sim_grid$vax_name[i]
   
-  spec_list[[i]] <-
-    if (policy_name == "Actual ALS" && vax_name == "Actual Boosters") {
-      spec_fixed
-    } else {
-      update_vax_spec_beta(
-        vax_scenario_specs[[vax_name]],
-        policy_list[[policy_name]]
-      )
-    }
+  spec_list[[i]] <- update_vax_spec_beta(vax_scenario_specs[[vax_name]],policy_list[[policy_name]])
+    # if (policy_name == "Actual ALS" && vax_name == "Actual Boosters") {
+    #   spec_fixed
+    # } else {
+    #   update_vax_spec_beta(vax_scenario_specs[[vax_name]],policy_list[[policy_name]])
+    # }
 }
 
 # Simulate
 for (i in seq_len(n_sims)) {
   all_sim_results[[i]] <- spec_list[[i]] |>
-    mp_simulator(time_steps = sim_horizon, outputs = c("inc", "total_inc", "booster_shot")) |>
+    mp_simulator(time_steps = sim_horizon, outputs = c("inc", "total_inc", "cum_booster_vac")) |>
     mp_trajectory() |>
     mutate(
       date = date0 + (time - booster_offset),
@@ -220,7 +218,7 @@ for (i in seq_len(n_sims)) {
 
 final_results_df <- bind_rows(all_sim_results) |>
   mutate(policy = factor(policy, levels = c("No-ALS Only", "Actual ALS", "ALS-4 Only"))) |>
-  filter(date >= analysis_start) |>
+  filter(date >= booster_start) |>
   mutate(
     vax_scenario = recode(
       vax_scenario,
@@ -246,13 +244,14 @@ vax_cols <- c(
 
 
 booster_shot_facets <- final_results_df |>
-  filter(matrix == "booster_shot" & date <= analysis_end) |> #  & policy == "Actual ALS" 
+  filter(matrix == "cum_booster_vac" & policy == "Actual ALS" ) |> #  
   # Ensure data is ordered correctly for the cumulative sum
   arrange(vax_scenario, policy, date) |> 
   group_by(vax_scenario, policy) |>
   #mutate(cum_pct = value) |>
   
-  mutate(cum_pct = (cumsum(value) / 510550) * 100) |>
+  #mutate(cum_pct = (cumsum(value) / 510550) * 100) |>
+  mutate(cum_pct = 100 * value / 510550) |>
   ungroup() |>
   ggplot(aes(x = date, y = cum_pct, colour = vax_scenario, group = vax_scenario)) +
   geom_line(linewidth = 1.1) +
@@ -267,6 +266,12 @@ booster_shot_facets <- final_results_df |>
   geom_vline(
     xintercept = as.Date("2022-03-14"),
     colour = "brown",
+    linetype = "dashed",
+    linewidth = 1.2
+  ) +
+  geom_vline(
+    xintercept = as.Date("2022-05-22"),
+    colour = "red",
     linetype = "dashed",
     linewidth = 1.2
   ) +
@@ -328,6 +333,12 @@ p_inc_policy_facets <- final_results_df |>
     linetype = 4,
     linewidth = 1.5
   ) +
+  geom_vline(
+    xintercept = as.Date("2022-05-22"),
+    colour = "red",
+    linetype = "dashed",
+    linewidth = 1.2
+  ) +
   scale_y_continuous(labels = scales::comma) +
   labs(
     title = "Daily incidence by ALS policies and vaccination scenario",
@@ -382,6 +393,12 @@ inc_als4_only <- final_results_df |>
     colour = "brown",
     linetype = 4,
     linewidth = 1.5
+  ) +
+  geom_vline(
+    xintercept = as.Date("2022-05-22"),
+    colour = "red",
+    linetype = "dashed",
+    linewidth = 1.2
   ) +
   scale_y_continuous(labels = scales::comma) +
   labs(

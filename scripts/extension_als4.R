@@ -77,8 +77,8 @@ generate_scenario_boosters <- function(scenario_name) {
       daydiff    = as.numeric(week_end - lag(week_end, default = week_end[1] - 7)),
       daily_rate = weekly_rate / daydiff,
       days       = as.numeric(week_end - day0)
-    ) |>
-    dplyr::filter(between(days, 0, 202 + booster_offset))
+    ) #|>
+    #dplyr::filter(between(days, 0, 202 + booster_offset))
   
   if (nrow(booster_inputs_df) == 0) {
     stop(paste("No rows found in weekly_scenarios_df for scenario:", scenario_name))
