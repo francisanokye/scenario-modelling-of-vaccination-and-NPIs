@@ -23,7 +23,10 @@ flows <- list(foi ~ beta * (zeta * (A1 + A2 + A3) + (I1 + I2 + I3)) / N
               , mp_per_capita_flow("A3", "R3", "gamma_a", "asymp_recov3")
               , mp_per_capita_flow("I3", "R3", "gamma_i", "symp_recov3")
               
-              , S ~ S1 + V2 + V3
+              , mp_inflow("cum_double_vac", "double_vac", "cumDV")
+              , mp_inflow("cum_booster", "booster_shot", "cumBooster")
+
+				  , S ~ S1 + V2 + V3
               , E ~ E1 + E2 + E3
               , A ~ A1 + A2 + A3
               , I ~ I1 + I2 + I3

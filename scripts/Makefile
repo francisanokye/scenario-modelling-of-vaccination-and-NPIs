@@ -40,7 +40,7 @@ fitsero.Rout: fitsero.R seroprevdata.rds ../data/raw_citf_data.csv params.rda
 	$(pipeR)
 
 calibrate.Rout: calibrate.R timevar_spec.rds seroprevdata.rds fitsero.rds params.rda
-	$(pipeRcall)
+	$(pipeR)
 	
 #vax_props.Rout: vax_props.R params.rda ../data/vaccination-coverage-map.csv 
 ##	$(pipeR)
@@ -91,7 +91,7 @@ beta_ALS4_180days_only.Rout: beta_ALS4_180days_only.R build_multipliers.rds cali
 	$(pipeR)
 	
 control_reprod_numb.Rout: control_reprod_numb.R beta_als4.rds policy_neutral.rds seroprevdata.rds fitsero.rds params.rda calibrate.rds
-	$(pipeRcall)
+	$(pipeR)
 
 initial_can_rate.Rout: initial_can_rate.R ../data/vaccination-coverage-map.csv 
 	$(pipeR)

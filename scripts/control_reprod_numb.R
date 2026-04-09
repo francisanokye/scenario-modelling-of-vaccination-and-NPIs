@@ -8,7 +8,6 @@ suppressPackageStartupMessages({
   library(ggthemes)
   library(patchwork)
   library(shellpipes)
-rpcall("control_reprod_numb.Rout control_reprod_numb.R beta_als4.rds policy_neutral.rds seroprevdata.rds fitsero.rds params.rda calibrate.rds")
   library(tidyverse)
   library(macpan2)
   library(grid)   # unit()

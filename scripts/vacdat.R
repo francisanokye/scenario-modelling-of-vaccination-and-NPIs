@@ -1,6 +1,5 @@
 library(tidyverse)
 library(shellpipes)
-rpcall("vacdat.Rout vacdat.R ../data/vaccination-coverage-map.csv")
 
 loadEnvironments()
 
