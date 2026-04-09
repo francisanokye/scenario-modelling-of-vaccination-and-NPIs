@@ -67,7 +67,10 @@ timevar_spec <- spec |> mp_tmb_insert(
 
 timevar_spec = mp_tmb_insert(timevar_spec
                              , at = Inf
-                             , expressions = list(newR ~ newR_total)
+                             , expressions = list(newR ~ newR_total
+#              , mp_inflow("cum_double_vac", "double_vac", "cumDV")
+#              , mp_inflow("cum_booster", "booster_shot", "cumBooster")
+										)
 )
 
 rdsSave(timevar_spec)
