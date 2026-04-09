@@ -14,7 +14,9 @@ vim_session:
 Sources += Makefile
 Sources += $(wildcard *.R)
 
-
+## Example of accumulator
+sir.Rout: sir.R
+	$(pipeR)
 
 vacdat.Rout: vacdat.R ../data/vaccination-coverage-map.csv 
 	$(pipeR)
