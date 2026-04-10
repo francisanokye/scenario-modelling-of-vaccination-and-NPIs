@@ -74,28 +74,21 @@ generate_scenario_boosters <- function(scenario_name) {
     dplyr::filter(scenario == scenario_name) |>
     dplyr::select(week_end, scenario, weekly_rate) |>
     mutate(
-      daydiff    = as.numeric(week_end - lag(week_end, default = week_end[1] - 7)),
+      daydiff = as.numeric(week_end - lag(week_end, default = week_end[1] - 7)),
       daily_rate = weekly_rate / daydiff,
-      days       = as.numeric(week_end - day0)
-    ) #|>
-    #dplyr::filter(between(days, 0, 202 + booster_offset))
-  
-  if (nrow(booster_inputs_df) == 0) {
-    stop(paste("No rows found in weekly_scenarios_df for scenario:", scenario_name))
-  }
+      days = as.numeric(week_end - day0)
+    ) |>
+    dplyr::filter(between(days, 0, 159 + booster_offset))
   
   changepoints <- booster_inputs_df$days - (booster_offset %% 7) - 1
-  values       <- booster_inputs_df$daily_rate
+  values <- booster_inputs_df$daily_rate
   
   if (!any(changepoints == 0)) {
     changepoints <- c(0, changepoints)
-    values       <- c(0, values)
+    values <- c(0, values)
   }
   
-  list(
-    changepoints = changepoints,
-    vac_values   = values
-  )
+  return(list(changepoints = changepoints, vac_values = values))
 }
 
 set_booster_vax <- function(booster_days, booster_vals) {
@@ -108,11 +101,12 @@ set_booster_vax <- function(booster_days, booster_vals) {
   spec
 }
 
+
 update_vax_spec_beta <- function(spec, new_beta) {
   stopifnot(length(new_beta) == spec$default$time_steps)
   spec |>
-    mp_tmb_delete(phase = "before", at = 24L) |>
-    mp_tmb_delete(phase = "before", at = 24L) |>
+    mp_tmb_delete(phase = "before", at = 26L) |>
+    mp_tmb_delete(phase = "before", at = 26L) |>
     mp_tmb_insert(default = list(timeseries_beta = new_beta))
 }
 

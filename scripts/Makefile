@@ -30,9 +30,6 @@ flows.Rout: flows.R params.rda
 timevar_spec.Rout: timevar_spec.R flows.rda vacdat.rda derive_vax_scenarios.rda params.rda 
 	$(pipeR)
 	
-## test_spec.Rout: test_spec.R timevar_spec.rds flows.rda vacdat.rda params.rda
-##	$(pipeR)
-
 seroprevdata.Rout: seroprevdata.R params.rda ../data/raw_citf_data.csv    
 	$(pipeR)
 
@@ -42,9 +39,6 @@ fitsero.Rout: fitsero.R seroprevdata.rds ../data/raw_citf_data.csv params.rda
 calibrate.Rout: calibrate.R timevar_spec.rds seroprevdata.rds fitsero.rds params.rda
 	$(pipeR)
 	
-#vax_props.Rout: vax_props.R params.rda ../data/vaccination-coverage-map.csv 
-##	$(pipeR)
-
 build_multipliers.Rout: build_multipliers.R seroprevdata.rds params.rda calibrate.rds fitsero.rds ../data/serop_avgcase_data.csv params.rda
 	$(pipeR)
 	

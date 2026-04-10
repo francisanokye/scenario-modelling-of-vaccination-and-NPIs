@@ -26,16 +26,16 @@ conflicted::conflicts_prefer(dplyr::filter)
 spline_beta = TRUE
 
 fig_dir   <- "../figures"
-diag_dir  <- file.path(fig_dir, "diagnostics_actual")
-posterior_dir <- file.path(fig_dir, "posterior")
+# diag_dir  <- file.path(fig_dir, "diagnostics_actual")
+# posterior_dir <- file.path(fig_dir, "posterior")
 ensure_dir <- function(path) {
   if (!dir.exists(path)) dir.create(path, recursive = TRUE)
   invisible(path)
 }
 
 ensure_dir(fig_dir)
-ensure_dir(diag_dir)
-ensure_dir(posterior_dir)
+# ensure_dir(diag_dir)
+# ensure_dir(posterior_dir)
 
 # load input data
 timevar_spec <- rdsRead("timevar_spec.rds")
@@ -92,7 +92,7 @@ calibrator = mp_tmb_calibrator(
   , time = mp_sim_bounds(1, time_steps)
   , traj = list(log_newR = mp_norm(sd = mp_fit(0.1)))
   , par = priors
-  , outputs = c("log_beta_thing", "log_inc", "log_newR","logit_serop_total")
+  , outputs = c("log_beta_thing", "log_inc", "log_newR","logit_serop_total", "cum_double_vac", "cum_booster")
 )
 
 # optimize fit
@@ -127,7 +127,7 @@ dev.off()
 # plot full compartment trajectories
 print(calibrator
       |> mp_optimized_spec("modified")
-      |> mp_simulator(time_steps, outputs = mp_state_vars(timevar_spec))
+      |> mp_simulator(time_steps, outputs = c(mp_state_vars(timevar_spec)), "cum_booster")
       |> mp_trajectory()
       |> lim_dat()
       |> ggplot()
@@ -192,10 +192,10 @@ posterior_plt <- ggplot(df_keep, aes(x = estimate, y = param)) +
     plot.background   = element_blank()
   )
 
-fn <- file.path(posterior_dir, "posterior_plot.png")
-png(fn, width = 3500, height = 1500, res = 300, bg = "white", type = "cairo")
-posterior_plt
-dev.off()
+# fn <- file.path(posterior_dir, "posterior_plot.png")
+# png(fn, width = 3500, height = 1500, res = 300, bg = "white", type = "cairo")
+# posterior_plt
+# dev.off()
 
 # ----------------------- settings ------------------------------------------
 n_draw <- 40000L
@@ -354,10 +354,10 @@ posterior <- ggplot(draws_df, aes(x = value, fill = dist, color = dist)) +
     plot.background   = element_blank()
   )
 
-fn <- file.path(posterior_dir, "prior_posterior.png")
-png(fn, width = 7500, height = 1500, res = 300, bg = "white", type = "cairo")
-posterior
-dev.off()
+# fn <- file.path(posterior_dir, "prior_posterior.png")
+# png(fn, width = 7500, height = 1500, res = 300, bg = "white", type = "cairo")
+# posterior
+# dev.off()
 
 actual_diagnostic = (calibrator
                      |> mp_optimized_spec("modified")
@@ -415,10 +415,10 @@ actual_diagnostic = (calibrator
                        )
 )
 
-fn <- file.path(diag_dir,paste0("diagnostic_", "actual",".png"))
-png(fn, width = 7500, height = 5000, res = 300, bg = "white", type = "cairo")
-actual_diagnostic
-dev.off()
+# fn <- file.path(diag_dir,paste0("diagnostic_", "actual",".png"))
+# png(fn, width = 7500, height = 5000, res = 300, bg = "white", type = "cairo")
+# actual_diagnostic
+# dev.off()
 
 
 # save fitted calibrator
