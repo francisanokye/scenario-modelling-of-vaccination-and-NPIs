@@ -266,12 +266,12 @@ for (i in seq_len(n_sims)) {
     facet_wrap(~matrix, scales = "free") +
     theme_clean() +
     theme(
-      axis.text.x       = element_text(size = 12,  hjust = 1, angle = 45, margin = margin(t = 8)),
-      axis.text.y       = element_text(size = 18),
-      axis.title.x      = element_text(size = 18),
-      axis.title.y      = element_text(size = 18),
-      plot.title        = element_text(size = 24, hjust = 0.5, face = "plain"),
-      strip.text        = element_text(size = 22, face = "plain", hjust = 0.5),
+      axis.text.x       = element_text(size = 10,  hjust = 1, angle = 45, margin = margin(t = 8)),
+      axis.text.y       = element_text(size = 10),
+      axis.title.x      = element_text(size = 10),
+      axis.title.y      = element_text(size = 10),
+      plot.title        = element_text(size = 12, hjust = 0.5, face = "plain"),
+      strip.text        = element_text(size = 12, face = "plain", hjust = 0.5),
       strip.background  = element_blank(),
       legend.position   = "top",
       legend.direction  = "horizontal",
@@ -279,7 +279,7 @@ for (i in seq_len(n_sims)) {
       legend.spacing.x  = unit(1.2, "cm"),
       legend.spacing.y  = unit(0.5, "cm"),
       legend.background = element_blank(),
-      legend.text       = element_text(size = 22, face = "plain"),
+      legend.text       = element_text(size = 12, face = "plain"),
       panel.spacing     = unit(1.5, "cm"),
       plot.background   = element_blank()
     )
@@ -393,14 +393,14 @@ dev.off()
 
 final_results_df <- final_results_df |>
   filter(date >= analysis_start)
-  
+
 # ------------------------------------------------------------
 # incidence plot for all policies
 # ------------------------------------------------------------
 p_inc_policy_facets <- final_results_df |>
   filter(matrix == "inc") |>
   ggplot(aes(x = date, y = value, colour = vax_scenario, group = vax_scenario)) +
-  geom_line(linewidth = 1.1) +
+  geom_line(linewidth = 1.5) +
   facet_wrap(~ policy, ncol = 3, scales = "fixed") +
   scale_color_manual(values = vax_cols, breaks = vax_order, drop = FALSE) +
   scale_x_date(
@@ -416,7 +416,7 @@ p_inc_policy_facets <- final_results_df |>
   ) +
   geom_vline(
     xintercept = as.Date("2022-05-22"),
-    colour = "red",
+    colour = "purple",
     linetype = "dashed",
     linewidth = 1.2
   ) +
@@ -430,9 +430,9 @@ p_inc_policy_facets <- final_results_df |>
   theme_clean() +
   theme(
     axis.text.x = element_text(size = 15, hjust = 1, angle = 45),
-    axis.text.y = element_text(size = 25),
-    axis.title.y = element_text(size = 25, color = "black"),
-    strip.text = element_text(size = 25),
+    axis.text.y = element_text(size = 28),
+    axis.title.y = element_text(size = 28, color = "black"),
+    strip.text = element_text(size = 28),
     strip.background = element_rect(fill = "gray"),
     legend.position = "bottom",
     legend.justification = "center",
@@ -440,11 +440,11 @@ p_inc_policy_facets <- final_results_df |>
     legend.box = "horizontal",
     legend.box.just = "center",
     legend.title = element_blank(),
-    legend.text = element_text(size = 25),
+    legend.text = element_text(size = 30),
     legend.background = element_blank(),
     legend.spacing.x = unit(0.35, "cm"),
     legend.margin = margin(t = 8, r = 8, b = 8, l = 8),
-    plot.title = element_text(size = 35, face = "plain", hjust = 0.5),
+    plot.title = element_text(size = 40, face = "plain", hjust = 0.5),
     plot.background = element_blank(),
     panel.grid.major.x = element_blank(),
     panel.spacing = unit(2, "cm")
@@ -452,7 +452,7 @@ p_inc_policy_facets <- final_results_df |>
 
 print(p_inc_policy_facets)
 
-png("../figures/incidence_all_policy.png", width = 7500, height = 3500, res = 300, bg = "white")
+png("../figures/incidence_all_policy.png", width = 5000, height = 3500, res = 300, bg = "white")
 print(p_inc_policy_facets)
 dev.off()
 
@@ -460,9 +460,9 @@ dev.off()
 # incidence plot for ALS-4 Only
 # ------------------------------------------------------------
 inc_als4_only <- final_results_df |>
-  filter(matrix == "inc" & policy == "ALS-4 Only") |>
+  filter(matrix == "inc" & policy == "ALS-4 Only") |> 
   ggplot(aes(x = date, y = value, colour = vax_scenario, group = vax_scenario)) +
-  geom_line(linewidth = 1.1) +
+  geom_line(linewidth = 1.5) +
   scale_color_manual(values = vax_cols, breaks = vax_order, drop = FALSE) +
   scale_x_date(
     date_breaks = "2 weeks",
@@ -477,7 +477,7 @@ inc_als4_only <- final_results_df |>
   ) +
   geom_vline(
     xintercept = as.Date("2022-05-22"),
-    colour = "red",
+    colour = "purple",
     linetype = "dashed",
     linewidth = 1.2
   ) +
@@ -513,7 +513,7 @@ inc_als4_only <- final_results_df |>
 
 print(inc_als4_only)
 
-png("../figures/incidence_als4_only.png", width = 4500, height = 1800, res = 300, bg = "white")
+png("../figures/incidence_als4_policy.png", width = 4500, height = 1800, res = 300, bg = "white")
 print(inc_als4_only)
 dev.off()
 
@@ -681,7 +681,7 @@ vax_x_labs <- c(
   "Slower rate"               = "Slower\nboosters",
   "National rate"             = "National\nrate",
   "Actual boosters"           = "Actual\nboosters",
-  "Early boosters (-35 Days)" = "Earlier boosters\n(-35 days)",
+  "Early boosters (-35 Days)" = "Earlier\nboosters\n(-35 days)",
   "Faster rate"               = "Faster\nboosters"
 )
 
@@ -699,7 +699,7 @@ p_peak_point <- ggplot(
   geom_text(
     aes(label = peak_lab),
     hjust = -0.20,
-    size = 8,
+    size = 10,
     position = position_dodge(width = 0.5),
     show.legend = FALSE
   ) +
@@ -713,11 +713,11 @@ p_peak_point <- ggplot(
   ) +
   theme_clean() +
   theme(
-    axis.text.x = element_text(size = 22, hjust = 0.5, angle = 0),
-    axis.text.y = element_text(size = 22),
-    axis.title.x = element_text(size = 22, color = "black"),
-    axis.title.y = element_text(size = 22, color = "black"),
-    strip.text = element_text(size = 22),
+    axis.text.x = element_text(size = 30, hjust = 0.5, angle = 0),
+    axis.text.y = element_text(size = 30),
+    axis.title.x = element_text(size = 30, color = "black"),
+    axis.title.y = element_text(size = 30, color = "black"),
+    strip.text = element_text(size = 30),
     strip.background = element_rect(fill = "grey90"),
     legend.position = "bottom",
     legend.justification = "center",
@@ -725,12 +725,12 @@ p_peak_point <- ggplot(
     legend.box = "horizontal",
     legend.box.just = "center",
     legend.title = element_blank(),
-    legend.text = element_text(size = 22),
+    legend.text = element_text(size = 30),
     legend.background = element_blank(),
     legend.key.width = unit(1.8, "cm"),
     legend.spacing.x = unit(0.35, "cm"),
     legend.margin = margin(t = 8, r = 8, b = 8, l = 8),
-    plot.title = element_text(size = 25, face = "plain", hjust = 0.5),
+    plot.title = element_text(size = 45, face = "plain", hjust = 0.5),
     plot.background = element_blank(),
     panel.grid.major.x = element_blank(),
     panel.spacing = unit(2, "cm")
@@ -748,7 +748,6 @@ print(p_peak_point)
 # set to NULL if not needed
 # ============================================================
 peak_threshold <- NULL
-# peak_threshold <- 5000
 
 # ============================================================
 # Peak summary from daily incidence
@@ -783,7 +782,7 @@ vax_y_labs <- c(
   "Slower rate"               = "Slower rate",
   "National rate"             = "National rate",
   "Actual boosters"           = "Actual boosters",
-  "Early boosters (-35 Days)" = "Earlier boosters\n(-35 days)",
+  "Early boosters (-35 Days)" = "Earlier\nboosters\n(-35 days)",
   "Faster rate"               = "Faster rate"
 )
 
@@ -812,13 +811,13 @@ p_heat_relative_enhanced <- ggplot(
   geom_tile(color = "white", linewidth = 1.2) +
   geom_text(
     aes(label = pct_lab),
-    size = 8,
+    size = 10,
     fontface = "bold",
     vjust = -0.25
   ) +
   geom_text(
     aes(label = peak_date_lab),
-    size = 8,
+    size = 10,
     vjust = 1.2
   ) +
   geom_tile(
@@ -843,16 +842,16 @@ p_heat_relative_enhanced <- ggplot(
   ) +
   theme_clean() +
   theme(
-    axis.text.x = element_text(size = 20, hjust = 0.5),
-    axis.text.y = element_text(size = 20),
-    plot.title = element_text(size = 25, hjust = 0.5, face = "plain"),
+    axis.text.x = element_text(size = 30, hjust = 0.5),
+    axis.text.y = element_text(size = 30),
+    plot.title = element_text(size = 45, hjust = 0.5, face = "plain"),
     legend.position = "bottom",
     legend.justification = "center",
     legend.direction = "horizontal",
     legend.box = "horizontal",
     legend.box.just = "center",
-    legend.title = element_text(size = 20),
-    legend.text = element_text(size = 20),
+    legend.title = element_text(size = 30),
+    legend.text = element_text(size = 30),
     legend.background = element_blank(),
     legend.key.width = unit(1.8, "cm"),
     legend.spacing.x = unit(0.35, "cm"),
@@ -872,7 +871,7 @@ p_heat_relative_enhanced <- ggplot(
 p_peak_combo <- p_peak_point / p_heat_relative_enhanced +
   plot_layout(heights = c(1.15, 1))
 
-png("../figures/peak_combo_enhanced.png", width = 5000, height = 5200, res = 300, bg = "white")
+png("../figures/peak_combo_enhanced.png", width = 7500, height = 5200, res = 300, bg = "white")
 print(p_peak_combo)
 dev.off()
 
@@ -996,7 +995,7 @@ plot_df <- bind_rows(period_diffs, total_diffs) |>
 vax_x_labs <- c(
   "National rate"             = "National\nrate",
   "Slower rate"               = "Slower\nrate",
-  "Early boosters (-35 Days)" = "Early boosters\n(-35 Days)",
+  "Early boosters (-35 Days)" = "Early\nboosters\n(-35 Days)",
   "Faster rate"               = "Faster\nrate"
 )
 
@@ -1018,16 +1017,16 @@ p_actual_vs_all_vax <- ggplot(
   scale_y_continuous(labels = scales::comma) +
   labs(
     x = "Vaccination scenarios",
-    y = expression(Delta * " cumulative infections (Actual boosters - comparison scenario)"),
+    y = expression(Delta * " cumulative infections (Actual boosters - alternative scenario)"),
     title = "Difference in cumulative infections: Actual boosters vs all vaccination scenarios"
   ) +
   theme_clean() +
   theme(
-    axis.text.x = element_text(size = 25, hjust = 0.5, angle = 0),
-    axis.text.y = element_text(size = 25),
-    axis.title.x = element_text(size = 25, color = "black"),
-    axis.title.y = element_text(size = 25, color = "black"),
-    strip.text = element_text(size = 25),
+    axis.text.x = element_text(size = 28, hjust = 0.5, angle = 0),
+    axis.text.y = element_text(size = 28),
+    axis.title.x = element_text(size = 28, color = "black"),
+    axis.title.y = element_text(size = 28, color = "black"),
+    strip.text = element_text(size = 30),
     strip.background = element_rect(fill = "gray"),
     legend.position = "bottom",
     legend.justification = "center",
@@ -1035,11 +1034,11 @@ p_actual_vs_all_vax <- ggplot(
     legend.box = "horizontal",
     legend.box.just = "center",
     legend.title = element_blank(),
-    legend.text = element_text(size = 25),
+    legend.text = element_text(size = 30),
     legend.background = element_blank(),
     legend.spacing.x = unit(0.35, "cm"),
     legend.margin = margin(t = 8, r = 8, b = 8, l = 8),
-    plot.title = element_text(size = 35, face = "plain", hjust = 0.5),
+    plot.title = element_text(size = 40, face = "plain", hjust = 0.5),
     plot.background = element_blank(),
     panel.grid.major.x = element_blank(),
     panel.spacing = unit(2, "cm")
@@ -1047,7 +1046,7 @@ p_actual_vs_all_vax <- ggplot(
 
 print(p_actual_vs_all_vax)
 
-png("../figures/actual_boosters_vs_all_vax_diffs.png",width = 8500,height = 4200,res = 300,bg = "white",type = "cairo")
+png("../figures/actual_boosters_vs_all_vax_diffs.png",width = 9000,height = 4500,res = 300,bg = "white",type = "cairo")
 print(p_actual_vs_all_vax)
 dev.off()
 

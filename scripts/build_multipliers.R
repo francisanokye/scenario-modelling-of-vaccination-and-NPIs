@@ -133,7 +133,6 @@ df_est <- df_est %>%
     beta_cf_NoALS = beta0_hat * m_scen_NoALS
   )
 
-print(df_est)
 
 # ===================== ALS-4 DAYS ONLY COUNTERFACTUALS =====================
 # ALS-4 starts on Dec 15, 2021 and lasts exactly d days, then NoALS.
@@ -322,10 +321,9 @@ p_beta_ALS4_days_only <- ggplot(df_est, aes(date)) +
     y = "Transmission rate"
   )
 
-png("../figures/p_beta_ALS4_days_only.png",
-    width = 4200, height = 2400, res = 300, bg = "white", type = "cairo")
-print(p_beta_ALS4_days_only)
-dev.off()
-print(df_est)
+# png("../figures/p_beta_ALS4_days_only.png",
+#     width = 4200, height = 2400, res = 300, bg = "white", type = "cairo")
+# print(p_beta_ALS4_days_only)
+# dev.off()
 
 rdsSave(df_est)
