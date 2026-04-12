@@ -51,14 +51,14 @@ fitserodata        <- rdsRead("fitsero.rds")
 padded_beta_noals  <- rdsRead("policy_neutral")
 padded_beta_base   <- rdsRead("base_beta")
 padded_beta_als4   <- rdsRead("beta_als4")
-booster_offset <- 150#107
+booster_offset <- 150
 sim_horizon <- 530
 
 # V2_init <-  234,600 ## nl   
 new_V2_init <- 277707 # use this national rate
 
 day0 <- as.Date("2021-11-08") - lubridate::days(booster_offset)
-date0 <- as.Date("2021-12-15")
+date0 <- as.Date("2021-11-08")
 
 # load weekly_scenarios_df
 weekly_scenarios_df <- weekly_scenarios_df
@@ -330,10 +330,10 @@ vax_cols <- c(
 )
 
 booster_shot_facets <- final_results_df |>
-  filter(matrix == "cum_booster" & policy == "Actual ALS") |>  
-  ggplot(aes(x = date, y = 100 * (value / 510550), colour = vax_scenario, group = vax_scenario)) +
+  filter(matrix == "cum_booster" & policy == "Actual ALS" & date <= analysis_end) |>  
+  ggplot(aes(x = date, y = (value / 510550), colour = vax_scenario, group = vax_scenario)) +
   geom_line(linewidth = 1.1) +
-  geom_point(size = 1.1) +
+  geom_point(size = 2) +
   facet_wrap(~ policy, ncol = 3, scales = "fixed") +
   scale_color_manual(values = vax_cols, breaks = vax_order, drop = FALSE) +
   scale_x_date(
@@ -349,25 +349,26 @@ booster_shot_facets <- final_results_df |>
   ) +
   geom_vline(
     xintercept = as.Date("2022-05-22"),
-    colour = "red",
+    colour = "purple",
     linetype = "dashed",
     linewidth = 1.2
   ) +
-  # Fixed the scales error here:
-  scale_y_continuous(labels = scales::label_number(suffix = "%")) + 
+  scale_x_date(
+    date_breaks = "2 weeks",
+    date_labels = "%b %Y",
+    expand = c(0, 0)
+  ) +
   labs(
     title = "Cumulative Booster Uptake by Policy and Scenario",
     x = NULL,
-    y = "Cumulative Coverage (%)",
+    y = "Proportion of NL population",
     colour = NULL
   ) +
   theme_clean() +
   theme(
-    axis.text.x = element_text(size = 15, hjust = 1, angle = 45),
+    axis.text.x = element_text(size = 25, hjust = 1, angle = 45),
     axis.text.y = element_text(size = 25),
-    axis.title.y = element_text(size = 25, color = "black"),
-    strip.text = element_text(size = 25),
-    strip.background = element_rect(fill = "gray"),
+    axis.title.y = element_text(size = 30, color = "black"),
     legend.position = "bottom",
     legend.justification = "center",
     legend.direction = "horizontal",
@@ -379,20 +380,14 @@ booster_shot_facets <- final_results_df |>
     legend.spacing.x = unit(0.35, "cm"),
     legend.margin = margin(t = 8, r = 8, b = 8, l = 8),
     plot.title = element_text(size = 35, face = "plain", hjust = 0.5),
-    plot.background = element_blank(),
-    panel.grid.major.x = element_blank(),
-    panel.spacing = unit(2, "cm")
+    plot.background = element_blank()
   )
 
 print(booster_shot_facets)
 
-png("../figures/booster_shots_policy.png", width = 6000, height = 2500, res = 300, bg = "white")
+png("../figures/booster_shots_policy.png", width = 5000, height = 2800, res = 300, bg = "white")
 print(booster_shot_facets)
 dev.off()
-
-
-final_results_df <- final_results_df |>
-  filter(date >= analysis_start)
 
 # ------------------------------------------------------------
 # incidence plot for all policies
@@ -406,7 +401,7 @@ p_inc_policy_facets <- final_results_df |>
   scale_x_date(
     date_breaks = "2 weeks",
     date_labels = "%b %Y",
-    expand = c(0, 0)
+    expand = c(0.01, 0)
   ) +
   geom_vline(
     xintercept = as.Date("2022-03-14"),
@@ -452,7 +447,7 @@ p_inc_policy_facets <- final_results_df |>
 
 print(p_inc_policy_facets)
 
-png("../figures/incidence_all_policy.png", width = 5000, height = 3500, res = 300, bg = "white")
+png("../figures/incidence_all_policy.png", width = 7500, height = 2500, res = 300, bg = "white")
 print(p_inc_policy_facets)
 dev.off()
 
@@ -535,16 +530,16 @@ vax_order_fixed <- c(
   "Slower rate",
   "Actual boosters",
   "National rate",
-  "Early boosters (-35 Days)",
-  "Faster rate"
+  "Faster rate",
+  "Early boosters (-35 Days)"
 )
 
 vax_x_labs <- c(
-  "Slower rate"               = "Slower rate",
-  "National rate"             = "National rate",
-  "Actual boosters"           = "Actual boosters",
-  "Faster rate"               = "Faster rate",
-  "Early boosters (-35 Days)" = "Early boosters (-35 Days)"
+  "Slower rate"               = "Slower\nrate",
+  "National rate"             = "National\nrate",
+  "Actual boosters"           = "Actual\nboosters",
+  "Faster rate"               = "Faster\nrate",
+  "Early boosters (-35 Days)" = "Early\nboosters\n(-35 Days)"
   
 )
 
@@ -556,7 +551,7 @@ period_cols <- c(
 totals_split_df <- final_results_df |>
   filter(
     matrix == "total_inc",
-    date >= start_date
+    date >= analysis_start
   ) |>
   group_by(policy, vax_scenario) |>
   summarise(
@@ -597,11 +592,11 @@ facet_labs <- function(x) {
 
 p_totals_split <- ggplot(
   totals_split_long,
-  aes(x = policy, y = infections, fill = period)
+  aes(x = vax_scenario, y = infections, fill = period)
 ) +
   geom_col(width = 0.75) +
   facet_wrap(
-    ~ vax_scenario,
+    ~ policy,
     nrow = 1,
     drop = FALSE,
     labeller = labeller(vax_scenario = facet_labs)
@@ -614,7 +609,7 @@ p_totals_split <- ggplot(
     ),
     name = NULL
   ) +
-  scale_x_discrete(labels = policy_x_labs, drop = FALSE) +
+  scale_x_discrete(labels = vax_x_labs, drop = FALSE) +
   scale_y_continuous(labels = scales::comma) +
   labs(
     title = "Total infections split by ALS policy period and after ALS removal",
@@ -646,7 +641,7 @@ p_totals_split <- ggplot(
 
 print(p_totals_split)
 
-png("../figures/vax_stackbar_als.png", width = 5000, height = 2500, res = 300, bg = "white")
+png("../figures/vax_stackbar_als.png", width = 6500, height = 2500, res = 300, bg = "white")
 print(p_totals_split)
 dev.off()
 

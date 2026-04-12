@@ -1,3 +1,4 @@
+
 suppressPackageStartupMessages({
   library(dplyr)
   library(tidyr)
@@ -16,19 +17,19 @@ loadEnvironments()
 # ============================================================
 # Constants
 # ============================================================
-NL_POP           <- 510550
-CA_POP           <- 36991981
-eligible_pop <- 426198
+NL_POP        <- 510550
+CA_POP        <- 36991981
+eligible_pop  <- 426198
 
-init_date      <- as.Date("2021-07-24")   
-booster_start  <- as.Date("2021-11-08")
-backlog_end    <- as.Date("2022-01-11")
-cutoff_date    <- as.Date("2022-02-07")
-analysis_start <- as.Date("2021-12-15")
-analysis_end   <- as.Date("2022-05-22")
-study_end      <- as.Date("2022-05-22")   
+init_date       <- as.Date("2021-07-24")
+booster_start   <- as.Date("2021-11-08")
+backlog_end     <- as.Date("2022-01-11")
+cutoff_date     <- as.Date("2022-02-07")
+analysis_start  <- as.Date("2021-12-15")
+analysis_end    <- as.Date("2022-05-22")
+study_end       <- as.Date("2022-05-22")
 earlier_vax_date <- as.Date("2021-10-04")
-booster_offset <- 150
+booster_offset  <- 150
 
 target_date       <- as.Date("2022-01-11")
 target_cumulative <- 106730
@@ -43,15 +44,14 @@ clip01 <- function(x) pmin(pmax(x, 0), 1)
 # ============================================================
 dat <- csvRead()
 
-# load and plot canada booster porportion scaled to NL
-can_lower_init <- ca_weekly_pts |>
-  select(week_end, nl_scaled_prop) 
-
-# bind this the other scenarios after they are created in line 
-canada_weekly_vax_nl <- can_weekly_nl_inputs |> select(week_end, weekly_rate)|> 
-  mutate(days = as.numeric(week_end - day0), scenario = "National Rate")|> 
-  select(scenario, week_end, weekly_rate)
-
+# National weekly rates already scaled to NL
+canada_weekly_vax_nl <- can_weekly_nl_inputs |>
+  select(week_end, weekly_rate) |>
+  mutate(
+    week_end = as.Date(week_end),
+    scenario = "National Rate"
+  ) |>
+  arrange(week_end)
 
 # ============================================================
 # Raw NL booster cumulative counts
@@ -72,7 +72,6 @@ df_raw <- dat |>
 # ============================================================
 # Correct cumulative booster series
 # ============================================================
-
 first_obs <- df_raw |>
   filter(!is.na(value)) |>
   arrange(week_end) |>
@@ -167,6 +166,8 @@ nl_actual <- bind_rows(df_imputed, df_true) |>
   arrange(week_end) |>
   redistribute_postflat_jumps(backlog_end = backlog_end) |>
   mutate(
+    corrected_value = pmax(corrected_value, 0),
+    corrected_value = cummax(corrected_value),
     cum_prop        = corrected_value / eligible_pop,
     daily_inc_star  = (corrected_value - lag(corrected_value, default = 0)) / 7,
     weekly_inc_star = corrected_value - lag(corrected_value, default = 0)
@@ -207,9 +208,6 @@ daily_base <- tibble(date = daily_dates) |>
 
 # ============================================================
 # Time-warp cumulative rollout
-# speed > 1  => faster
-# speed < 1  => slower
-# shift_days < 0 => earlier
 # ============================================================
 make_rollout_scenario <- function(df, speed = 1, shift_days = 0, label) {
   base_dates <- df$date
@@ -256,10 +254,10 @@ make_rollout_scenario <- function(df, speed = 1, shift_days = 0, label) {
 # Vaccination scenarios
 # ============================================================
 daily_scenarios_df <- bind_rows(
-  make_rollout_scenario(daily_base, speed = 1.00,   shift_days =   0, label = "Actual Boosters"),
-  make_rollout_scenario(daily_base, speed = 1.00,   shift_days = -35, label = "Early Boosters (-35 Days)"),
-  make_rollout_scenario(daily_base, speed = 1.50,   shift_days =   0, label = "Faster Rate"),
-  make_rollout_scenario(daily_base, speed = 1/1.5,  shift_days =   0, label = "Slower Rate")
+  make_rollout_scenario(daily_base, speed = 1.00,  shift_days =   0, label = "Actual Boosters"),
+  make_rollout_scenario(daily_base, speed = 1.00,  shift_days = -35, label = "Early Boosters (-35 Days)"),
+  make_rollout_scenario(daily_base, speed = 1.50,  shift_days =   0, label = "Faster Rate"),
+  make_rollout_scenario(daily_base, speed = 1/1.5, shift_days =   0, label = "Slower Rate")
 ) |>
   mutate(
     days_since_init = as.integer(date - init_date)
@@ -273,11 +271,10 @@ weekly_scenarios_df <- daily_scenarios_df |>
     cum_prop    = max(cum_prop, na.rm = TRUE),
     cum_val     = max(cum_val, na.rm = TRUE),
     .groups = "drop"
-  ) 
+  )
 
 # ============================================================
 # Build model-ready booster inputs (daily)
-# one changepoint per day, anchored to init_date
 # ============================================================
 booster_inputs_df <- daily_scenarios_df |>
   transmute(
@@ -289,151 +286,159 @@ booster_inputs_df <- daily_scenarios_df |>
   arrange(scenario, day)
 
 # ============================================================
-# Plotting
+# Plot styling
 # ============================================================
 theme_pub <- theme_clean() +
   theme(
-    axis.text.x = element_text(size = 16, hjust = 1, angle = 45),
-    axis.text.y = element_text(size = 20),
-    axis.title.y = element_text(size = 22, color = "black"),
+    axis.text.x = element_text(size = 25, hjust = 1, angle = 45),
+    axis.text.y = element_text(size = 25),
+    axis.title.y = element_text(size = 30, color = "black"),
     legend.position = "bottom",
     legend.justification = "center",
     legend.direction = "horizontal",
     legend.box = "horizontal",
     legend.box.just = "center",
     legend.title = element_blank(),
-    legend.text = element_text(size = 20),
+    legend.text = element_text(size = 25),
     legend.background = element_blank(),
     legend.spacing.x = unit(0.35, "cm"),
     legend.margin = margin(t = 8, r = 8, b = 8, l = 8),
-    plot.title = element_text(size = 24, face = "plain", hjust = 0.5),
+    plot.title = element_text(size = 35, face = "plain", hjust = 0.5),
     plot.background = element_blank()
   )
 
 actual_stars <- nl_actual |>
   filter(week_end <= cutoff_date)
 
-p1 <- ggplot(daily_scenarios_df, aes(x = date, y = daily_rate, color = scenario)) +
-  geom_line(linewidth = 1) +
-  geom_point(size = 1.2) +
-  geom_point(
-    data = actual_stars,
-    aes(x = week_end, y = daily_inc_star),
-    color = "black",
-    shape = 8,
-    size = 3,
-    inherit.aes = FALSE
-  ) +
-  scale_x_date(date_breaks = "month", date_labels = "%Y-%m", expand = c(0, 0)) +
-  scale_color_brewer(palette = "Set1") +
-  labs(title = "Daily Booster Delivery Rate Comparison", y = "Daily booster doses", x = NULL) +
-  theme_pub
-
-
 vax_cols <- c(
   "Slower Rate"               = "magenta",
   "Early Boosters (-35 Days)" = "blue",
   "Actual Boosters"           = "black",
-  "Faster Rate"               = "orange"
+  "Faster Rate"               = "orange",
+  "National Rate"             = "springgreen3"
 )
 
-p2 <- ggplot(daily_scenarios_df |> filter(date <= as.Date("2022-05-22")),aes(x = date, y = cum_prop, color = scenario)) +
-  geom_line(linewidth = 1) +
-  geom_point(
-    data = weekly_scenarios_df |> filter(week_end <= as.Date("2022-05-22"),!(scenario == "Actual Boosters" & week_end <= cutoff_date)),
-    aes(x = week_end, y = cum_prop, color = scenario),
-    size = 5,
-    inherit.aes = FALSE
-  ) +
-  geom_point(
-    data = actual_stars,
-    aes(x = week_end, y = cum_prop),
-    color = "black",
-    shape = 8,
-    size = 8,
-    inherit.aes = FALSE
-  ) +
-  geom_line(
-    data = can_lower_init[!is.na(can_lower_init$nl_scaled_prop), ],
-    aes(x = week_end, y = nl_scaled_prop, color = "National Rate"),
-    inherit.aes = FALSE,
-    linewidth = 1
-  ) +
-  geom_point(
-    data = can_lower_init,
-    aes(x = week_end, y = nl_scaled_prop, color = "National Rate"),
-    inherit.aes = FALSE,
-    size = 5
-  ) +
-  geom_vline(
-    xintercept = booster_start,
-    color = "maroon",
-    linetype = 2,
-    linewidth = 1.5
-  ) +
-  scale_colour_manual(values = c(vax_cols,"National Rate" =  "springgreen3")) +
+# ============================================================
+# Replace early Actual Boosters rows with starred rows
+# ============================================================
+weekly_scenarios_df <- weekly_scenarios_df |>
+  mutate(is_star = FALSE) |>
+  filter(!(scenario == "Actual Boosters" & week_end <= cutoff_date))
+
+actual_stars2 <- actual_stars |>
+  transmute(
+    week_end,
+    weekly_rate = weekly_inc_star,
+    cum_prop,
+    cum_val = corrected_value,
+    is_star = TRUE,
+    scenario = "Actual Boosters"
+  )
+
+missing_cols_star <- setdiff(names(weekly_scenarios_df), names(actual_stars2))
+for (cc in missing_cols_star) actual_stars2[[cc]] <- NA
+actual_stars2 <- actual_stars2[, names(weekly_scenarios_df)]
+
+weekly_scenarios_df <- bind_rows(weekly_scenarios_df, actual_stars2)
+
+# ============================================================
+# Add National Rate from full weekly-rate series
+# This removes the gap and avoids sparse plotting-only points
+# ============================================================
+national_rate_df <- canada_weekly_vax_nl |>
+  arrange(week_end) |>
+  filter(week_end >= booster_start, week_end <= study_end) |>
+  mutate(
+    weekly_rate   = replace_na(weekly_rate, 0),
+    weekly_rate   = pmax(weekly_rate, 0),
+    cum_boosters  = cumsum(weekly_rate),
+    cum_boosters  = cummax(cum_boosters),
+    cum_prop      = clip01(cum_boosters / NL_POP),
+    cum_val       = cum_boosters,
+    is_star       = FALSE,
+    scenario      = "National Rate"
+  ) |>
+  select(names(weekly_scenarios_df))
+
+weekly_scenarios_df <- weekly_scenarios_df |>
+  filter(scenario != "National Rate") |>
+  bind_rows(national_rate_df)
+
+# ============================================================
+# Remove duplicates and enforce valid cumulative behaviour
+# ============================================================
+weekly_scenarios_df <- weekly_scenarios_df |>
+  arrange(scenario, week_end) |>
+  group_by(scenario, week_end) |>
+  summarise(
+    weekly_rate   = sum(replace_na(weekly_rate, 0), na.rm = TRUE),
+    cum_prop      = max(replace_na(cum_prop, 0), na.rm = TRUE),
+    cum_val       = max(replace_na(cum_val, 0), na.rm = TRUE),
+    is_star       = any(replace_na(is_star, FALSE)),
+    .groups = "drop"
+  ) |>
+  group_by(scenario) |>
+  arrange(week_end, .by_group = TRUE) |>
+  mutate(
+    cum_val       = pmax(cum_val, 0),
+    cum_val       = cummax(cum_val),
+    cum_boosters  = cum_val,
+    cum_prop      = clip01(cum_boosters / NL_POP),
+    weekly_rate   = c(cum_boosters[1], diff(cum_boosters)),
+    weekly_rate   = pmax(weekly_rate, 0)
+  ) |>
+  ungroup()
+
+# strict check: no duplicates remain
+dup_check <- weekly_scenarios_df |>
+  count(scenario, week_end) |>
+  filter(n > 1)
+
+stopifnot(nrow(dup_check) == 0)
+stopifnot(all(weekly_scenarios_df$cum_prop >= 0))
+
+# ============================================================
+# Plot
+# ============================================================
+pp <- ggplot(
+  weekly_scenarios_df |>
+    filter(week_end <= as.Date("2022-05-22"))
+) +
+  geom_line(aes(x = week_end, y = cum_prop, color = scenario), linewidth = 1.5) +
+  geom_point(aes(x = week_end, y = cum_prop, color = scenario, shape = is_star), size = 7) +
+  scale_shape_manual(values = c("FALSE" = 16, "TRUE" = 8), guide = "none") +
+  geom_vline(xintercept = booster_start, color = "maroon", linetype = 2, linewidth = 2) +
+  scale_colour_manual(values = vax_cols) +
   scale_x_date(
     limits = c(booster_start, as.Date("2022-05-22")),
     date_breaks = "2 weeks",
     date_labels = "%b %Y",
-    expand = c(0.05,0)
+    expand = c(0.05, 0)
   ) +
-  scale_y_continuous(
-    labels = percent_format(),
-    limits = c(0, 0.9)
-  ) +
-  scale_y_continuous(labels = percent_format(), limits = c(0, 0.9)) +
   labs(
     title = "Proportions of booster vaccination coverage in NL",
     y = "Proportion of NL eligible population",
     x = NULL
   ) +
-  theme_pub+
+  theme_pub +
   guides(colour = guide_legend(nrow = 1, byrow = TRUE)) +
   labs(tag = "B") +
   theme(
-      plot.tag = element_text(size = 35, face = "bold", colour = "black"),
-      plot.tag.position = c(0.01, 0.98)
-    )
+    plot.tag = element_text(size = 35, face = "bold", colour = "black"),
+    plot.tag.position = c(0.01, 0.98)
+  )
 
-p3 <- ggplot(weekly_scenarios_df, aes(x = week_end, y = weekly_rate, color = scenario)) +
-  geom_line(linewidth = 1) +
-  geom_point(size = 1.8) +
-  geom_point(
-    data = actual_stars,
-    aes(x = week_end, y = weekly_inc_star),
-    color = "black",
-    shape = 8,
-    size = 4,
-    inherit.aes = FALSE
-  ) +
-  scale_x_date(date_breaks = "2 weeks", date_labels = "%b %Y", expand = c(0, 0)) +
-  scale_y_continuous(labels = comma) +
-  scale_color_brewer(palette = "Set1") +
-  labs(title = "Weekly Booster Delivery Rate Comparison", y = "Weekly booster doses", x = NULL) +
-  theme_pub
-
-# png("../figures/daily_vax_rate.png", width = 5000, height = 2800, res = 300, bg = "white")
-# print(p1)
-# dev.off()
-
-png("../figures/cum_vax_rate.png", width = 5000, height = 2800, res = 300, bg = "white")
-print(p2)
+png("../figures/cumulative_vax_rate.png", width = 5000, height = 2800, res = 300, bg = "white")
+print(pp)
 dev.off()
 
-# png("../figures/weekly_vax_rate.png", width = 5000, height = 2800, res = 300, bg = "white")
-# print(p3)
-# dev.off()
+print(pp)
+print(weekly_scenarios_df, n = Inf)
 
 # ============================================================
-# Save outputs for downstream simulation
+# Save weekly scenarios for downstream use
 # ============================================================
-
-# row bind canadaina national average vax to Nl to vaccination scenarios
-weekly_scenarios_df <- weekly_scenarios_df|> 
+weekly_scenarios_df <- weekly_scenarios_df |>
   select(scenario, week_end, weekly_rate)
 
-weekly_scenarios_df <- rbind(weekly_scenarios_df,canada_weekly_vax_nl)
-
-saveVars(weekly_scenarios_df,daily_scenarios_df, booster_inputs_df)
-
+saveVars(weekly_scenarios_df, daily_scenarios_df, booster_inputs_df)

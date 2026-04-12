@@ -241,7 +241,7 @@ vax_cols <- c(
 # THRESHOLD + CROSSING DAYS
 # label only crossing days
 # ============================================================
-threshold <- 1500
+threshold <- 1600
 
 cross_df <- peak_df |>
   arrange(vax_scenario, als4_days_num) |>
@@ -251,7 +251,10 @@ cross_df <- peak_df |>
     x <- df$als4_days_num
     y <- df$peak_inc
     
-    idx <- which(y[-length(y)] > threshold & y[-1] <= threshold)[1]
+    idx <- which(
+      (y[-length(y)] < threshold & y[-1] >= threshold) |
+        (y[-length(y)] > threshold & y[-1] <= threshold)
+    )[1]
     
     if (is.na(idx)) {
       return(tibble(

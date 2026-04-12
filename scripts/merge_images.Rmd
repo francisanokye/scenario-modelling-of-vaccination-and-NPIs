@@ -13,7 +13,7 @@ library(magick)
 
 # input images 
 img_path1 <- "../figures/control_reprod_numb.png"
-img_path2 <- "../figures/cum_vax_rate.png"
+img_path2 <- "../figures/cumulative_vax_rate.png"
 
 # read images (original resolution preserved)
 img1 <- image_read(img_path1)
