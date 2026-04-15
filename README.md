@@ -14,6 +14,11 @@ All results (including calibration, simulations, and figures) can be reproduced 
 
 This command executes the full workflow end-to-end and regenerates all outputs from the raw inputs.
 
+To force a full rebuild:
+
+    make clean
+    make simulation_vax_scenarios.Rout
+
 ---
 
 ## Computational workflow
@@ -133,19 +138,6 @@ Saved as `.rds` and `.rda` files:
 - transmission trajectories  
 - vaccination scenarios  
 - simulation outputs  
-
----
-
-## Execution notes
-
-- All commands must be run from the repository root directory  
-- The Makefile controls execution order and dependencies  
-- Intermediate files are reused unless removed  
-
-To force a full rebuild:
-
-    make clean
-    make simulation_vax_scenarios.Rout
 
 ---
 
