@@ -10,5 +10,164 @@ The analysis is implemented as a fully reproducible computational pipeline using
 
 All results (including calibration, simulations, and figures) can be reproduced with a single command:
 
-```bash
-make simulation_vax_scenarios.Rout
+    make simulation_vax_scenarios.Rout
+
+This command executes the full workflow end-to-end and regenerates all outputs from the raw inputs.
+
+---
+
+## Computational workflow
+
+The pipeline performs the following steps automatically:
+
+1. **Model calibration**  
+   Fits the epidemiological model to seroprevalence data and produces calibrated parameter objects.  
+
+   Outputs:  
+   - `calibrate.rds`  
+   - `fitsero.rds`  
+
+2. **Transmission reconstruction**  
+   Estimates time-varying transmission and generates baseline and counterfactual transmission trajectories.  
+
+   Outputs:  
+   - `base_beta.rds`  
+   - `beta_als4.rds`  
+   - `policy_neutral.rds`  
+   - `build_multipliers.rds`  
+
+3. **Vaccination scenario construction**  
+   Builds alternative vaccination trajectories, including observed rollout, earlier boosters, faster and slower uptake, and alternative initial coverage.  
+
+   Output:  
+   - `derive_vax_scenarios.rda`  
+
+4. **Scenario simulation**  
+   Simulates all combinations of vaccination and policy scenarios using the calibrated model.  
+
+5. **Figure generation**  
+   Produces all main and supplementary figures used in the analysis.  
+
+---
+
+## Pipeline specification
+
+The workflow is defined by the following Make rule:
+
+    simulation_vax_scenarios.Rout: simulation_vax_scenarios.R \
+      calibrate.rds base_beta.rds beta_als4.rds policy_neutral.rds \
+      build_multipliers.rds fitsero.rds seroprevdata.rds params.rda \
+      derive_vax_scenarios.rda ../data/serop_avgcase_data.csv params.rda
+    	$(pipeR)
+
+All dependencies are resolved automatically. Intermediate objects are generated and reused when available.
+
+---
+
+## Repository structure
+
+    .
+    ├── scripts/              # Model specification, simulation, and plotting
+    ├── data/                 # Input datasets
+    ├── figures/              # Generated figures
+    ├── *.rds / *.rda         # Intermediate model objects
+    ├── Makefile              # Reproducible pipeline
+
+---
+
+## Software requirements
+
+- R (≥ 4.2)  
+- GNU Make  
+
+---
+
+## R package dependencies
+
+Install required packages in R:
+
+    install.packages(c(
+      "tidyverse", "ggplot2", "dplyr", "tidyr", "purrr",
+      "readr", "stringr", "lubridate", "scales",
+      "patchwork", "cowplot", "zoo", "splines",
+      "broom.mixed", "ggthemes", "readxl", "tibble"
+    ))
+
+    install.packages("remotes")
+    remotes::install_github("canmod/macpan2")
+    remotes::install_github("canmod/shellpipes")
+
+---
+
+## Inputs
+
+The pipeline requires:
+
+- seroprevalence data (`seroprevdata.rds`)  
+- case data (`../data/serop_avgcase_data.csv`)  
+- model parameter file (`params.rda`)  
+
+All required inputs are included in the repository.
+
+---
+
+## Outputs
+
+Running the pipeline produces:
+
+### Figures (saved in `figures/`)
+
+- vaccination coverage trajectories  
+- daily incidence trajectories  
+- cumulative infections  
+- infections during vs post-policy periods  
+- peak incidence comparisons  
+- threshold-crossing analyses  
+- reproduction number trajectories  
+
+### Intermediate outputs
+
+Saved as `.rds` and `.rda` files:
+
+- calibrated model parameters  
+- transmission trajectories  
+- vaccination scenarios  
+- simulation outputs  
+
+---
+
+## Execution notes
+
+- All commands must be run from the repository root directory  
+- The Makefile controls execution order and dependencies  
+- Intermediate files are reused unless removed  
+
+To force a full rebuild:
+
+    make clean
+    make simulation_vax_scenarios.Rout
+
+---
+
+## Reproducibility considerations
+
+- Results are deterministic given the provided inputs and code  
+- Use consistent R and package versions where possible  
+- Do not modify file paths or directory structure  
+
+To record the computational environment:
+
+    sessionInfo()
+
+---
+
+## Citation
+
+If using this repository or reproducing results, please cite the associated manuscript.
+
+---
+
+## Contact
+
+Francis Anokye  
+https://github.com/francisanokye  
