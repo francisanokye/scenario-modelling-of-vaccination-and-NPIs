@@ -12,8 +12,10 @@ Try executing this chunk by clicking the *Run* button within the chunk or by pla
 library(magick)
 
 # input images 
-img_path1 <- "../figures/control_reprod_numb.png"
-img_path2 <- "../figures/cumulative_vax_rate.png"
+img_path1 <- "../figures/cumulative_vax_rate.png"
+# img_path2 <- "../figures/booster_shots_policy.png"
+img_path2 <- "../figures/booster_shots_policy.png"
+
 
 # read images (original resolution preserved)
 img1 <- image_read(img_path1)
@@ -42,7 +44,7 @@ combined_img <- image_append(c(img1, img2), stack = TRUE)
 # save stacked image (no resizing, no re-rendering) 
 image_write(
   combined_img,
-  path   = "../figures/reprod_vax_props.png",
+  path   = "../figures/compare_cum_vax.png",
   format = "png"
 )
 

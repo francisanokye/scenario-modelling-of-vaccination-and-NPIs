@@ -1,3 +1,4 @@
+
 suppressPackageStartupMessages({
   library(dplyr)
   library(tidyr)
@@ -9,6 +10,7 @@ suppressPackageStartupMessages({
   library(scales)
   library(grid)
   library(patchwork)
+  library(lubridate)
 })
 
 set.seed(2025)
@@ -20,13 +22,16 @@ options(scipen = 9999)
 # ============================================================
 # CONFIG
 # ============================================================
-init_date      <- as.Date("2021-07-24") 
+init_date      <- as.Date("2021-07-24")
 booster_start  <- as.Date("2021-11-08")
 analysis_start <- as.Date("2021-12-15")
 analysis_end   <- as.Date("2022-05-22")
 cut_date       <- as.Date("2022-03-14")
 fig_dir        <- "../figures"
-diag_dir  <- file.path(fig_dir, "diagnostics_")
+diag_dir       <- file.path(fig_dir, "diagnostics_")
+
+eligible_pop   <- 426198
+NL_POP         <- 510550
 
 ensure_dir <- function(path) {
   if (!dir.exists(path)) dir.create(path, recursive = TRUE, showWarnings = FALSE)
@@ -46,52 +51,64 @@ ensure_dir(diag_dir)
 # ============================================================
 # INPUTS
 # ============================================================
-calibrator         <- rdsRead("calibrate")
-fitserodata        <- rdsRead("fitsero.rds")
-padded_beta_noals  <- rdsRead("policy_neutral")
-padded_beta_base   <- rdsRead("base_beta")
-padded_beta_als4   <- rdsRead("beta_als4")
-booster_offset <- 150
+calibrator        <- rdsRead("calibrate")
+fitserodata       <- rdsRead("fitsero.rds")
+padded_beta_noals <- rdsRead("policy_neutral")
+padded_beta_base  <- rdsRead("base_beta")
+padded_beta_als4  <- rdsRead("beta_als4")
+
+stopifnot(exists("weekly_scenarios_df"))
+stopifnot(exists("booster_inputs_df"))
+
 sim_horizon <- 530
+new_V2_init <- 277707
 
-# V2_init <-  234,600 ## nl   
-new_V2_init <- 277707 # use this national rate
-
-day0 <- as.Date("2021-11-08") - lubridate::days(booster_offset)
-date0 <- as.Date("2021-11-08")
-
-# load weekly_scenarios_df
-weekly_scenarios_df <- weekly_scenarios_df
-
+# ============================================================
+# Use daily booster inputs
+# ============================================================
 generate_scenario_boosters <- function(scenario_name) {
-  booster_inputs_df <- weekly_scenarios_df |>
-    dplyr::filter(scenario == scenario_name) |>
-    dplyr::select(week_end, scenario, weekly_rate) |>
-    mutate(
-      daydiff = as.numeric(week_end - lag(week_end, default = week_end[1] - 7)),
-      daily_rate = weekly_rate / daydiff,
-      days = as.numeric(week_end - day0)
-    ) |>
-    dplyr::filter(between(days, 0, 159 + booster_offset))
-  
-  changepoints <- booster_inputs_df$days - (booster_offset %% 7) - 1
-  values <- booster_inputs_df$daily_rate
-  
-  if (!any(changepoints == 0)) {
-    changepoints <- c(0, changepoints)
-    values <- c(0, values)
+
+  scenario_daily <- booster_inputs_df |>
+    filter(scenario == scenario_name) |>
+    arrange(day) |>
+    transmute(
+      changepoints = as.integer(day),
+      vac_values   = as.numeric(booster_vac_value)
+    )
+
+  if (nrow(scenario_daily) == 0) {
+    stop(paste("No booster_inputs_df rows found for scenario:", scenario_name))
   }
-  
-  return(list(changepoints = changepoints, vac_values = values))
+
+  scenario_daily <- scenario_daily |>
+    group_by(changepoints) |>
+    summarise(
+      vac_values = sum(vac_values, na.rm = TRUE),
+      .groups = "drop"
+    ) |>
+    arrange(changepoints)
+
+  if (!any(scenario_daily$changepoints == 0)) {
+    scenario_daily <- bind_rows(
+      tibble(changepoints = 0L, vac_values = 0),
+      scenario_daily
+    ) |>
+      arrange(changepoints)
+  }
+
+  list(
+    changepoints = scenario_daily$changepoints,
+    vac_values   = scenario_daily$vac_values
+  )
 }
 
 # ============================================================
-# Replace booster schedule in calibrated spec
+# replace booster schedule in calibrated spec
 # ============================================================
 set_booster_vax <- function(booster_days, booster_vals) {
   stopifnot(length(booster_days) == length(booster_vals))
   stopifnot(all(diff(booster_days) >= 0))
-  
+
   spec <- mp_optimized_spec(calibrator, "modified")
   spec$integers$booster_vac_changepoints <- as.integer(booster_days)
   spec$default$booster_vac_values        <- as.numeric(booster_vals)
@@ -99,52 +116,63 @@ set_booster_vax <- function(booster_days, booster_vals) {
 }
 
 # ============================================================
-# Vaccination scenario specs
+# vaccination scenario specs
 # ============================================================
+actual_boosters_results <- generate_scenario_boosters("Actual Boosters")
+spec_actual <- set_booster_vax(
+  actual_boosters_results$changepoints,
+  actual_boosters_results$vac_values
+)
+
 early_boosters_results <- generate_scenario_boosters("Early Boosters (-35 Days)")
-early_changepoints <- early_boosters_results$changepoints
-early_vac_values   <- early_boosters_results$vac_values
-spec_early <- set_booster_vax(early_boosters_results$changepoints, early_boosters_results$vac_values)
+spec_early <- set_booster_vax(
+  early_boosters_results$changepoints,
+  early_boosters_results$vac_values
+)
 
 faster_rate_results <- generate_scenario_boosters("Faster Rate")
-faster_changepoints <- faster_rate_results$changepoints
-faster_vac_values   <- faster_rate_results$vac_values
-spec_faster <- set_booster_vax(faster_rate_results$changepoints, faster_rate_results$vac_values)
+spec_faster <- set_booster_vax(
+  faster_rate_results$changepoints,
+  faster_rate_results$vac_values
+)
 
 slower_rate_results <- generate_scenario_boosters("Slower Rate")
-slower_changepoints <- slower_rate_results$changepoints
-slower_vac_values   <- slower_rate_results$vac_values
-spec_slower <- set_booster_vax(slower_rate_results$changepoints, slower_rate_results$vac_values)
+spec_slower <- set_booster_vax(
+  slower_rate_results$changepoints,
+  slower_rate_results$vac_values
+)
 
 natl_rate_results <- generate_scenario_boosters("National Rate")
-natl_changepoints <- natl_rate_results$changepoints
-natl_vac_values   <- natl_rate_results$vac_values
-spec_natl <- set_booster_vax(natl_rate_results$changepoints, natl_rate_results$vac_values)
-spec_natl <- spec_natl |> 
+spec_natl <- set_booster_vax(
+  natl_rate_results$changepoints,
+  natl_rate_results$vac_values
+)
+spec_natl <- spec_natl |>
   mp_tmb_insert(default = list(V2_init = new_V2_init))
 
 # ============================================================
-# Baseline calibrated model
+# baseline calibrated model
 # ============================================================
 spec_fixed <- mp_optimized_spec(calibrator, "modified")
 time_steps <- spec_fixed$default$time_steps
 
-# ------------------------------------------------------------
+# ============================================================
 # list of model specs with applied vaccination scenarios
-# ------------------------------------------------------------
+# ============================================================
 vax_scenario_specs <- list(
-  "Actual Boosters"           = spec_fixed,
+  "Actual Boosters"           = spec_actual,
   "Slower Rate"               = spec_slower,
   "Faster Rate"               = spec_faster,
-  "Early Boosters"            = spec_early,
+  "Early Boosters (-35 Days)" = spec_early,
   "National Rate"             = spec_natl
 )
 
 # ============================================================
-# Apply ALS policies on the vaccination scenario specs
+# apply ALS policies on the vaccination scenario specs
 # ============================================================
 update_vax_spec_beta <- function(spec, new_beta) {
   stopifnot(length(new_beta) == spec$default$time_steps)
+
   spec |>
     mp_tmb_delete(phase = "before", at = 26L) |>
     mp_tmb_delete(phase = "before", at = 26L) |>
@@ -156,10 +184,11 @@ policy_list <- list(
   "ALS-4 Only"  = padded_beta_als4,
   "No-ALS Only" = padded_beta_noals
 )
-policy_order <- names(policy_list)
+
+policy_order <- c("No-ALS Only", "Actual ALS", "ALS-4 Only")
 
 # ============================================================
-# COMMON VAX ORDER FIX
+# COMMON VAX ORDER
 # ============================================================
 vax_order <- c(
   "National rate",
@@ -169,10 +198,32 @@ vax_order <- c(
   "Faster rate"
 )
 
+vax_cols <- c(
+  "National rate"             = "springgreen3",
+  "Slower rate"               = "magenta",
+  "Actual boosters"           = "black",
+  "Early boosters (-35 Days)" = "blue",
+  "Faster rate"               = "orange"
+)
+
+scenario_labs <- c(
+  "National Rate"             = "National rate",
+  "Slower Rate"               = "Slower rate",
+  "Actual Boosters"           = "Actual boosters",
+  "Early Boosters (-35 Days)" = "Early boosters (-35 Days)",
+  "Faster Rate"               = "Faster rate"
+)
+
+scenario_levels <- c(
+  "National Rate",
+  "Slower Rate",
+  "Actual Boosters",
+  "Early Boosters (-35 Days)",
+  "Faster Rate"
+)
+
 # ============================================================
 # Simulate each policy x vaccination scenario
-# Save diagnostic plot for each spec_list[[i]]
-# Bind all results together
 # ============================================================
 policy_names <- names(policy_list)
 vax_names    <- names(vax_scenario_specs)
@@ -188,31 +239,25 @@ sim_grid <- expand.grid(
 
 n_sims <- nrow(sim_grid)
 
-spec_list        <- vector("list", n_sims)
-all_sim_results  <- vector("list", n_sims)
-diag_plot_list   <- vector("list", n_sims)
+spec_list       <- vector("list", n_sims)
+all_sim_results <- vector("list", n_sims)
+diag_plot_list  <- vector("list", n_sims)
 
-# ------------------------------------------------------------
-# build scenario-specific specs
-# ------------------------------------------------------------
 for (i in seq_len(n_sims)) {
   policy_name <- sim_grid$policy_name[i]
   vax_name    <- sim_grid$vax_name[i]
-  
+
   spec_list[[i]] <- update_vax_spec_beta(
     vax_scenario_specs[[vax_name]],
     policy_list[[policy_name]]
   )
 }
 
-# ------------------------------------------------------------
-# simulate each spec, save diagnostic plot, store results
-# ------------------------------------------------------------
 for (i in seq_len(n_sims)) {
-  
+
   policy_name <- sim_grid$policy_name[i]
   vax_name    <- sim_grid$vax_name[i]
-  
+
   sim_dat <- spec_list[[i]] |>
     mp_simulator(
       sim_horizon,
@@ -220,38 +265,16 @@ for (i in seq_len(n_sims)) {
     ) |>
     mp_trajectory() |>
     mutate(
-      date = date0 + (time - booster_offset),
+      date = init_date + time,
       policy = policy_name,
       vax_scenario = vax_name,
       combined_label = sim_grid$combined_label[i]
     )
-  
+
   all_sim_results[[i]] <- sim_dat
-  
+
   p_diag <- sim_dat |>
     ggplot(aes(x = date, y = value)) +
-    geom_rect(
-      data = data.frame(
-        xmin = date0 - booster_offset,
-        xmax = date0
-      ),
-      aes(xmin = xmin, xmax = xmax, ymin = -Inf, ymax = Inf),
-      inherit.aes = FALSE,
-      fill = "grey30",
-      alpha = 0.25
-    ) +
-    geom_vline(
-      xintercept = date0 + (231 - booster_offset),
-      color = "black",
-      linetype = 4,
-      linewidth = 1.0
-    ) +
-    geom_vline(
-      xintercept = date0 + (300 - booster_offset),
-      colour = "purple",
-      linetype = 4,
-      linewidth = 1.5
-    ) +
     geom_line() +
     labs(
       title = paste("Diagnostic compartment trajectories:", policy_name, "-", vax_name),
@@ -266,109 +289,193 @@ for (i in seq_len(n_sims)) {
     facet_wrap(~matrix, scales = "free") +
     theme_clean() +
     theme(
-      axis.text.x       = element_text(size = 10,  hjust = 1, angle = 45, margin = margin(t = 8)),
+      axis.text.x       = element_text(size = 10, hjust = 1, angle = 45, margin = margin(t = 8)),
       axis.text.y       = element_text(size = 10),
       axis.title.x      = element_text(size = 10),
       axis.title.y      = element_text(size = 10),
-      plot.title        = element_text(size = 12, hjust = 0.5, face = "plain"),
-      strip.text        = element_text(size = 12, face = "plain", hjust = 0.5),
+      plot.title        = element_text(size = 12, hjust = 0.5),
+      strip.text        = element_text(size = 12),
       strip.background  = element_blank(),
-      legend.position   = "top",
-      legend.direction  = "horizontal",
-      legend.box        = "horizontal",
-      legend.spacing.x  = unit(1.2, "cm"),
-      legend.spacing.y  = unit(0.5, "cm"),
-      legend.background = element_blank(),
-      legend.text       = element_text(size = 12, face = "plain"),
-      panel.spacing     = unit(1.5, "cm"),
-      plot.background   = element_blank()
+      panel.spacing     = unit(1.5, "cm")
     )
-  
+
   diag_plot_list[[i]] <- p_diag
-  
+
   file_stub <- paste0(
     "diag_",
     gsub("[^A-Za-z0-9]+", "_", policy_name),
     "__",
     gsub("[^A-Za-z0-9]+", "_", vax_name)
   )
-  
-  fn <- file.path(diag_dir, paste0(file_stub, ".png"))
-  
-  png(fn, width = 3500, height = 800, res = 300, bg = "white", type = "cairo")
-  print(p_diag)
-  dev.off()
+
+  save_png(
+    file.path(diag_dir, paste0(file_stub, ".png")),
+    p_diag,
+    width = 3500,
+    height = 800
+  )
 }
 
-# ------------------------------------------------------------
-# bind all results together
-# ------------------------------------------------------------
+# ============================================================
+# Bind all results together
+# ============================================================
 final_results_df <- bind_rows(all_sim_results) |>
   mutate(
-    value = as.integer(value),
-    policy = factor(policy, levels = c("No-ALS Only", "Actual ALS", "ALS-4 Only"))
+    value = as.numeric(value),
+    policy = factor(policy, levels = policy_order)
   ) |>
   filter(date >= booster_start) |>
   mutate(
     vax_scenario = recode(
       vax_scenario,
-      "National Rate"   = "National rate",
-      "Slower Rate"     = "Slower rate",
-      "Early Boosters"  = "Early boosters (-35 Days)",
-      "Actual Boosters" = "Actual boosters",
-      "Faster Rate"     = "Faster rate"
+      "National Rate"             = "National rate",
+      "Slower Rate"               = "Slower rate",
+      "Early Boosters (-35 Days)" = "Early boosters (-35 Days)",
+      "Actual Boosters"           = "Actual boosters",
+      "Faster Rate"               = "Faster rate"
     ),
     vax_scenario = factor(vax_scenario, levels = vax_order)
   )
 
-vax_cols <- c(
-  "National rate"             = "springgreen3",
-  "Slower rate"               = "magenta",
-  "Actual boosters"           = "black",
-  "Early boosters (-35 Days)" = "blue",
-  "Faster rate"               = "orange"
+# ============================================================
+# VACCINATION-SCENARIO COMPARISON
+# Use booster_inputs_df and same init_date clock
+# ============================================================
+input_daily_df <- booster_inputs_df |>
+  mutate(
+    date = init_date + day
+  ) |>
+  filter(date >= booster_start, date <= analysis_end) |>
+  mutate(
+    scenario = factor(scenario, levels = scenario_levels),
+    week_end = ceiling_date(date, unit = "week", week_start = 7) - days(1)
+  ) |>
+  arrange(scenario, date) |>
+  group_by(scenario) |>
+  mutate(
+    cum_val = cumsum(replace_na(booster_vac_value, 0))
+  ) |>
+  ungroup()
+
+input_cum_booster_df <- input_daily_df |>
+  group_by(scenario, week_end) |>
+  summarise(
+    cum_val = max(cum_val, na.rm = TRUE),
+    .groups = "drop"
+  ) |>
+  mutate(
+    cum_prop = cum_val / eligible_pop,
+    series = "Input curve"
+  )
+
+model_daily_df <- final_results_df |>
+  filter(
+    matrix == "cum_booster",
+    policy == "Actual ALS",
+    date >= booster_start,
+    date <= analysis_end
+  ) |>
+  mutate(
+    scenario = recode(
+      as.character(vax_scenario),
+      "National rate"             = "National Rate",
+      "Slower rate"               = "Slower Rate",
+      "Actual boosters"           = "Actual Boosters",
+      "Early boosters (-35 Days)" = "Early Boosters (-35 Days)",
+      "Faster rate"               = "Faster Rate"
+    ),
+    scenario = factor(scenario, levels = scenario_levels),
+    week_end = ceiling_date(date, unit = "week", week_start = 7) - days(1)
+  ) |>
+  group_by(scenario, week_end) |>
+  summarise(
+    cum_val = max(value, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+model_cum_booster_df <- input_cum_booster_df |>
+  select(scenario, week_end) |>
+  left_join(model_daily_df, by = c("scenario", "week_end")) |>
+  group_by(scenario) |>
+  arrange(week_end, .by_group = TRUE) |>
+  tidyr::fill(cum_val, .direction = "down") |>
+  ungroup() |>
+  mutate(
+    cum_prop = cum_val / eligible_pop,
+    series = "Model output"
+  )
+
+booster_compare_df <- bind_rows(
+  input_cum_booster_df |>
+    select(scenario, week_end, cum_val, cum_prop, series),
+  model_cum_booster_df |>
+    select(scenario, week_end, cum_val, cum_prop, series)
+) |>
+  mutate(
+    scenario = factor(scenario, levels = scenario_levels),
+    series = factor(series, levels = c("Input curve", "Model output"))
+  )
+
+vax_cols_panel <- c(
+  "Slower Rate"               = "magenta",
+  "Early Boosters (-35 Days)" = "blue",
+  "Actual Boosters"           = "black",
+  "Faster Rate"               = "orange",
+  "National Rate"             = "springgreen3"
 )
 
-booster_shot_facets <- final_results_df |>
-  filter(matrix == "cum_booster" & policy == "Actual ALS" & date <= analysis_end) |>  
-  ggplot(aes(x = date, y = (value / 510550), colour = vax_scenario, group = vax_scenario)) +
-  geom_line(linewidth = 1.1) +
-  geom_point(size = 2) +
-  facet_wrap(~ policy, ncol = 3, scales = "fixed") +
-  scale_color_manual(values = vax_cols, breaks = vax_order, drop = FALSE) +
-  scale_x_date(
-    date_breaks = "1 month", 
-    date_labels = "%b %Y",
-    expand = c(0, 0)
+booster_shot_facets <- ggplot(
+  booster_compare_df,
+  aes(
+    x = week_end,
+    y = cum_prop,
+    linetype = series,
+    group = series,
+    colour = scenario
+  )
+) +
+  geom_line(linewidth = 1.5) +
+  geom_point(size = 2.2) +
+  facet_wrap(
+    ~ scenario,
+    ncol = 3,
+    scales = "fixed",
+    labeller = labeller(scenario = scenario_labs)
   ) +
   geom_vline(
-    xintercept = as.Date("2022-03-14"),
+    xintercept = booster_start,
     colour = "brown",
-    linetype = "dashed",
+    linetype = 2,
     linewidth = 1.2
   ) +
-  geom_vline(
-    xintercept = as.Date("2022-05-22"),
-    colour = "purple",
-    linetype = "dashed",
-    linewidth = 1.2
+  scale_colour_manual(
+    values = vax_cols_panel,
+    guide = "none"
+  ) +
+  scale_linetype_manual(
+    values = c(
+      "Input curve"  = "solid",
+      "Model output" = "dashed"
+    )
   ) +
   scale_x_date(
     date_breaks = "2 weeks",
     date_labels = "%b %Y",
-    expand = c(0, 0)
+    expand = c(0.02, 0)
   ) +
   labs(
-    title = "Cumulative Booster Uptake by Policy and Scenario",
+    title = "Cumulative booster uptake: input curve vs model output",
     x = NULL,
-    y = "Proportion of NL population",
-    colour = NULL
+    y = "Proportion of NL eligible population",
+    linetype = NULL
   ) +
   theme_clean() +
   theme(
     axis.text.x = element_text(size = 25, hjust = 1, angle = 45),
-    axis.text.y = element_text(size = 25),
+    axis.text.y = element_text(size = 30),
     axis.title.y = element_text(size = 30, color = "black"),
+    strip.text = element_text(size = 35),
+    strip.background = element_rect(fill = "grey92", colour = NA),
     legend.position = "bottom",
     legend.justification = "center",
     legend.direction = "horizontal",
@@ -379,43 +486,78 @@ booster_shot_facets <- final_results_df |>
     legend.background = element_blank(),
     legend.spacing.x = unit(0.35, "cm"),
     legend.margin = margin(t = 8, r = 8, b = 8, l = 8),
-    plot.title = element_text(size = 35, face = "plain", hjust = 0.5),
-    plot.background = element_blank()
+    plot.title = element_text(size = 40, face = "plain", hjust = 0.5),
+    plot.background = element_blank(),
+    panel.spacing = unit(1.0, "cm")
+  ) +
+  labs(tag = "B") +
+  theme(
+    plot.tag = element_text(size = 35, face = "bold", colour = "black"),
+    plot.tag.position = c(0.01, 0.99)
   )
 
-print(booster_shot_facets)
+save_png(
+  "../figures/booster_shots_policy.png",
+  booster_shot_facets,
+  width = 9000,
+  height = 4500
+)
 
-png("../figures/booster_shots_policy.png", width = 5000, height = 2800, res = 300, bg = "white")
-print(booster_shot_facets)
-dev.off()
+# ============================================================
+# Incidence ribbon summary
+# ============================================================
+inc_ribbon_df <- final_results_df |>
+  filter(matrix == "inc") |>
+  group_by(date, policy, vax_scenario) |>
+  summarise(
+    mean  = mean(value, na.rm = TRUE),
+    se    = sd(value, na.rm = TRUE) / sqrt(dplyr::n()),
+    lower = mean - 1.96 * se,
+    upper = mean + 1.96 * se,
+    .groups = "drop"
+  ) |>
+  mutate(
+    lower = ifelse(is.na(lower), mean, lower),
+    upper = ifelse(is.na(upper), mean, upper)
+  ) |>
+  filter(is.finite(lower), is.finite(upper), upper >= lower)
 
-# ------------------------------------------------------------
-# incidence plot for all policies
-# ------------------------------------------------------------
+# ============================================================
+# Incidence plot for all policies
+# ============================================================
 p_inc_policy_facets <- final_results_df |>
   filter(matrix == "inc") |>
   ggplot(aes(x = date, y = value, colour = vax_scenario, group = vax_scenario)) +
+  geom_ribbon(
+    data = inc_ribbon_df,
+    aes(x = date, ymin = lower, ymax = upper, fill = vax_scenario, group = vax_scenario),
+    inherit.aes = FALSE,
+    alpha = 0.18,
+    colour = NA,
+    show.legend = FALSE
+  ) +
   geom_line(linewidth = 1.5) +
   facet_wrap(~ policy, ncol = 3, scales = "fixed") +
   scale_color_manual(values = vax_cols, breaks = vax_order, drop = FALSE) +
+  scale_fill_manual(values = vax_cols, breaks = vax_order, drop = FALSE) +
   scale_x_date(
     date_breaks = "2 weeks",
     date_labels = "%b %Y",
     expand = c(0.01, 0)
   ) +
   geom_vline(
-    xintercept = as.Date("2022-03-14"),
+    xintercept = cut_date,
     colour = "brown",
     linetype = 4,
     linewidth = 1.5
   ) +
   geom_vline(
-    xintercept = as.Date("2022-05-22"),
+    xintercept = analysis_end,
     colour = "purple",
     linetype = "dashed",
     linewidth = 1.2
   ) +
-  scale_y_continuous(labels = scales::comma) +
+  scale_y_continuous(labels = comma) +
   labs(
     title = "Daily incidence by ALS policies and vaccination scenario",
     x = NULL,
@@ -439,44 +581,56 @@ p_inc_policy_facets <- final_results_df |>
     legend.background = element_blank(),
     legend.spacing.x = unit(0.35, "cm"),
     legend.margin = margin(t = 8, r = 8, b = 8, l = 8),
-    plot.title = element_text(size = 40, face = "plain", hjust = 0.5),
-    plot.background = element_blank(),
+    plot.title = element_text(size = 40, hjust = 0.5),
     panel.grid.major.x = element_blank(),
     panel.spacing = unit(2, "cm")
   )
 
-print(p_inc_policy_facets)
+save_png(
+  "../figures/incidence_all_policy.png",
+  p_inc_policy_facets,
+  width = 7500,
+  height = 2500
+)
 
-png("../figures/incidence_all_policy.png", width = 7500, height = 2500, res = 300, bg = "white")
-print(p_inc_policy_facets)
-dev.off()
+# ============================================================
+# Incidence plot for ALS-4 Only
+# ============================================================
+inc_ribbon_als4 <- inc_ribbon_df |>
+  filter(policy == "ALS-4 Only")
 
-# ------------------------------------------------------------
-# incidence plot for ALS-4 Only
-# ------------------------------------------------------------
 inc_als4_only <- final_results_df |>
-  filter(matrix == "inc" & policy == "ALS-4 Only") |> 
+  filter(matrix == "inc", policy == "ALS-4 Only") |>
   ggplot(aes(x = date, y = value, colour = vax_scenario, group = vax_scenario)) +
+  geom_ribbon(
+    data = inc_ribbon_als4,
+    aes(x = date, ymin = lower, ymax = upper, fill = vax_scenario, group = vax_scenario),
+    inherit.aes = FALSE,
+    alpha = 0.18,
+    colour = NA,
+    show.legend = FALSE
+  ) +
   geom_line(linewidth = 1.5) +
   scale_color_manual(values = vax_cols, breaks = vax_order, drop = FALSE) +
+  scale_fill_manual(values = vax_cols, breaks = vax_order, drop = FALSE) +
   scale_x_date(
     date_breaks = "2 weeks",
     date_labels = "%b %Y",
     expand = c(0, 0)
   ) +
   geom_vline(
-    xintercept = as.Date("2022-03-14"),
+    xintercept = cut_date,
     colour = "brown",
     linetype = 4,
     linewidth = 1.5
   ) +
   geom_vline(
-    xintercept = as.Date("2022-05-22"),
+    xintercept = analysis_end,
     colour = "purple",
     linetype = "dashed",
     linewidth = 1.2
   ) +
-  scale_y_continuous(labels = scales::comma) +
+  scale_y_continuous(labels = comma) +
   labs(
     title = "Daily incidence under ALS-4 Only across vaccination scenario",
     x = NULL,
@@ -488,8 +642,6 @@ inc_als4_only <- final_results_df |>
     axis.text.x = element_text(size = 14, hjust = 1, angle = 45),
     axis.text.y = element_text(size = 18),
     axis.title.y = element_text(size = 18, color = "black"),
-    strip.text = element_blank(),
-    strip.background = element_blank(),
     legend.position = "bottom",
     legend.justification = "center",
     legend.direction = "horizontal",
@@ -500,26 +652,20 @@ inc_als4_only <- final_results_df |>
     legend.background = element_blank(),
     legend.spacing.x = unit(0.35, "cm"),
     legend.margin = margin(t = 8, r = 8, b = 8, l = 8),
-    plot.title = element_text(size = 20, face = "plain", hjust = 0.5),
-    plot.background = element_blank(),
-    panel.grid.major.x = element_blank(),
-    panel.spacing = unit(2, "cm")
+    plot.title = element_text(size = 20, hjust = 0.5),
+    panel.grid.major.x = element_blank()
   )
 
-print(inc_als4_only)
-
-png("../figures/incidence_als4_policy.png", width = 4500, height = 1800, res = 300, bg = "white")
-print(inc_als4_only)
-dev.off()
+save_png(
+  "../figures/incidence_als4_policy.png",
+  inc_als4_only,
+  width = 4500,
+  height = 1800
+)
 
 # ============================================================
-# Plot stackbar plot
+# Total infections split by period
 # ============================================================
-start_date <- as.Date("2021-12-15")
-cut_date   <- as.Date("2022-03-14")
-
-policy_order <- c("No-ALS Only", "Actual ALS", "ALS-4 Only")
-
 policy_x_labs <- c(
   "No-ALS Only" = "No-ALS\nOnly",
   "Actual ALS"  = "Actual\nALS",
@@ -540,7 +686,6 @@ vax_x_labs <- c(
   "Actual boosters"           = "Actual\nboosters",
   "Faster rate"               = "Faster\nrate",
   "Early boosters (-35 Days)" = "Early\nboosters\n(-35 Days)"
-  
 )
 
 period_cols <- c(
@@ -549,15 +694,12 @@ period_cols <- c(
 )
 
 totals_split_df <- final_results_df |>
-  filter(
-    matrix == "total_inc",
-    date >= analysis_start
-  ) |>
+  filter(matrix == "total_inc", date >= analysis_start) |>
   group_by(policy, vax_scenario) |>
   summarise(
     total_cut = max(value[date <= cut_date], na.rm = TRUE),
     total_end = max(value, na.rm = TRUE),
-    .groups = "drop"    
+    .groups = "drop"
   ) |>
   mutate(
     total_cut = ifelse(is.finite(total_cut), total_cut, 0),
@@ -603,14 +745,11 @@ p_totals_split <- ggplot(
   ) +
   scale_fill_manual(
     values = period_cols,
-    breaks = c(
-      "ALS period (≤ Mar 14, 2022)",
-      "No-ALS period (> Mar 14, 2022)"
-    ),
+    breaks = c("ALS period (≤ Mar 14, 2022)", "No-ALS period (> Mar 14, 2022)"),
     name = NULL
   ) +
   scale_x_discrete(labels = vax_x_labs, drop = FALSE) +
-  scale_y_continuous(labels = scales::comma) +
+  scale_y_continuous(labels = comma) +
   labs(
     title = "Total infections split by ALS policy period and after ALS removal",
     x = NULL,
@@ -633,26 +772,23 @@ p_totals_split <- ggplot(
     legend.background = element_blank(),
     legend.spacing.x = unit(0.35, "cm"),
     legend.margin = margin(t = 8, r = 8, b = 8, l = 8),
-    plot.title = element_text(size = 24, face = "plain", hjust = 0.5),
-    plot.background = element_blank(),
+    plot.title = element_text(size = 24, hjust = 0.5),
     panel.grid.major.x = element_blank(),
     panel.spacing = unit(2, "cm")
   )
 
-print(p_totals_split)
-
-png("../figures/vax_stackbar_als.png", width = 6500, height = 2500, res = 300, bg = "white")
-print(p_totals_split)
-dev.off()
+save_png(
+  "../figures/vax_stackbar_als.png",
+  p_totals_split,
+  width = 6500,
+  height = 2500
+)
 
 # ============================================================
-# Peak summary from daily incidence
+# Peak figures
 # ============================================================
 peak_df <- final_results_df |>
-  filter(
-    matrix == "inc",
-    date <= as.Date("2022-05-22")
-  ) |>
+  filter(matrix == "inc", date <= analysis_end) |>
   group_by(vax_scenario, policy) |>
   summarise(
     peak_inc = max(value, na.rm = TRUE),
@@ -661,23 +797,19 @@ peak_df <- final_results_df |>
   ) |>
   mutate(
     peak_lab = comma(round(peak_inc, 0)),
-    peak_day = as.integer(peak_date - min(peak_date, na.rm = TRUE)),
     peak_date_lab = format(peak_date, "%b %d, %Y")
-  )
-
-policy_order <- c("No-ALS Only", "Actual ALS", "ALS-4 Only")
-peak_df <- peak_df |>
+  ) |>
   mutate(
     policy = factor(policy, levels = policy_order),
     vax_scenario = factor(vax_scenario, levels = vax_order)
   )
 
-vax_x_labs <- c(
+vax_peak_labs <- c(
   "Slower rate"               = "Slower\nboosters",
   "National rate"             = "National\nrate",
   "Actual boosters"           = "Actual\nboosters",
-  "Early boosters (-35 Days)" = "Earlier\nboosters\n(-35 days)",
-  "Faster rate"               = "Faster\nboosters"
+  "Faster rate"               = "Faster\nboosters",
+  "Early boosters (-35 Days)" = "Earlier\nboosters\n(-35 days)"
 )
 
 policy_cols <- c(
@@ -694,13 +826,13 @@ p_peak_point <- ggplot(
   geom_text(
     aes(label = peak_lab),
     hjust = -0.20,
-    size = 10,
+    size = 9,
     position = position_dodge(width = 0.5),
     show.legend = FALSE
   ) +
   scale_colour_manual(values = policy_cols, name = NULL, drop = FALSE) +
   scale_x_continuous(labels = comma, expand = expansion(mult = c(0.1, 0.18))) +
-  scale_y_discrete(labels = rev(vax_x_labs)) +
+  scale_y_discrete(labels = rev(vax_peak_labs)) +
   labs(
     title = "Peak daily infections by vaccination and policy scenario",
     x = "Peak daily infections",
@@ -708,12 +840,9 @@ p_peak_point <- ggplot(
   ) +
   theme_clean() +
   theme(
-    axis.text.x = element_text(size = 30, hjust = 0.5, angle = 0),
+    axis.text.x = element_text(size = 30),
     axis.text.y = element_text(size = 30),
     axis.title.x = element_text(size = 30, color = "black"),
-    axis.title.y = element_text(size = 30, color = "black"),
-    strip.text = element_text(size = 30),
-    strip.background = element_rect(fill = "grey90"),
     legend.position = "bottom",
     legend.justification = "center",
     legend.direction = "horizontal",
@@ -725,72 +854,36 @@ p_peak_point <- ggplot(
     legend.key.width = unit(1.8, "cm"),
     legend.spacing.x = unit(0.35, "cm"),
     legend.margin = margin(t = 8, r = 8, b = 8, l = 8),
-    plot.title = element_text(size = 45, face = "plain", hjust = 0.5),
-    plot.background = element_blank(),
-    panel.grid.major.x = element_blank(),
-    panel.spacing = unit(2, "cm")
+    plot.title = element_text(size = 45, hjust = 0.5),
+    panel.grid.major.x = element_blank()
   ) +
   labs(tag = "A") +
   theme(
-    plot.tag = element_text(size = 35, face = "bold", colour = "black"),
+    plot.tag = element_text(size = 35, face = "bold"),
     plot.tag.position = c(0.01, 0.98)
   )
 
-print(p_peak_point)
-
-# ============================================================
-# USER OPTION: optional threshold for policy communication
-# set to NULL if not needed
-# ============================================================
-peak_threshold <- NULL
-
-# ============================================================
-# Peak summary from daily incidence
-# ============================================================
-peak_df <- final_results_df |>
-  filter(
-    date >= analysis_start,
-    date <= as.Date("2022-05-22")
-  ) |>
+peak_df2 <- final_results_df |>
+  filter(date >= booster_start, date <= analysis_end) |>
   group_by(vax_scenario, policy) |>
   summarise(
     peak_inc = max(value[matrix == "inc"], na.rm = TRUE),
     peak_date = date[matrix == "inc"][which.max(value[matrix == "inc"])],
-    final_total_inc = max(value[matrix == "total_inc"], na.rm = TRUE),
-    cut_total_inc = max(value[matrix == "total_inc" & date <= as.Date("2022-03-14")], na.rm = TRUE),
     .groups = "drop"
   ) |>
   mutate(
-    peak_lab = comma(round(peak_inc, 0)),
-    peak_date_lab = format(peak_date, "%b %d %Y"),
-    peak_date_num = as.numeric(peak_date),
-    is_observed = policy == "Actual ALS" & vax_scenario == "Actual boosters"
-  )
-
-peak_df <- peak_df |>
+    peak_date_lab = format(peak_date, "%b %d %Y")
+  ) |>
   mutate(
     policy = factor(policy, levels = policy_order),
     vax_scenario = factor(vax_scenario, levels = vax_order)
   )
 
-vax_y_labs <- c(
-  "Slower rate"               = "Slower rate",
-  "National rate"             = "National rate",
-  "Actual boosters"           = "Actual boosters",
-  "Early boosters (-35 Days)" = "Earlier\nboosters\n(-35 days)",
-  "Faster rate"               = "Faster rate"
-)
-
-heat_df <- peak_df |>
-  mutate(
-    vax_scenario = factor(vax_scenario, levels = rev(vax_order))
-  )
+heat_df <- peak_df2 |>
+  mutate(vax_scenario = factor(vax_scenario, levels = rev(vax_order)))
 
 ref_peak <- heat_df |>
-  filter(
-    policy == "Actual ALS",
-    vax_scenario == "Actual boosters"
-  ) |>
+  filter(policy == "Actual ALS", vax_scenario == "Actual boosters") |>
   pull(peak_inc)
 
 heat_df_rel <- heat_df |>
@@ -799,22 +892,21 @@ heat_df_rel <- heat_df |>
     pct_lab = sprintf("%.0f%%", pct_change_peak)
   )
 
+vax_y_labs <- c(
+  "Slower rate"               = "Slower rate",
+  "National rate"             = "National rate",
+  "Actual boosters"           = "Actual boosters",
+  "Faster rate"               = "Faster rate",
+  "Early boosters (-35 Days)" = "Earlier\nboosters\n(-35 days)"
+)
+
 p_heat_relative_enhanced <- ggplot(
   heat_df_rel,
   aes(x = policy, y = vax_scenario, fill = pct_change_peak)
 ) +
   geom_tile(color = "white", linewidth = 1.2) +
-  geom_text(
-    aes(label = pct_lab),
-    size = 10,
-    fontface = "bold",
-    vjust = -0.25
-  ) +
-  geom_text(
-    aes(label = peak_date_lab),
-    size = 10,
-    vjust = 1.2
-  ) +
+  geom_text(aes(label = pct_lab), size = 10, fontface = "bold", vjust = -0.25) +
+  geom_text(aes(label = peak_date_lab), size = 10, vjust = 1.2) +
   geom_tile(
     data = heat_df_rel |> filter(policy == "Actual ALS", vax_scenario == "Actual boosters"),
     fill = NA,
@@ -837,9 +929,9 @@ p_heat_relative_enhanced <- ggplot(
   ) +
   theme_clean() +
   theme(
-    axis.text.x = element_text(size = 30, hjust = 0.5),
+    axis.text.x = element_text(size = 30),
     axis.text.y = element_text(size = 30),
-    plot.title = element_text(size = 45, hjust = 0.5, face = "plain"),
+    plot.title = element_text(size = 45, hjust = 0.5),
     legend.position = "bottom",
     legend.justification = "center",
     legend.direction = "horizontal",
@@ -851,36 +943,29 @@ p_heat_relative_enhanced <- ggplot(
     legend.key.width = unit(1.8, "cm"),
     legend.spacing.x = unit(0.35, "cm"),
     legend.margin = margin(t = 8, r = 8, b = 8, l = 8),
-    plot.background = element_blank(),
     panel.grid = element_blank()
   ) +
   labs(tag = "B") +
   theme(
-    plot.tag = element_text(size = 35, face = "bold", colour = "black"),
+    plot.tag = element_text(size = 35, face = "bold"),
     plot.tag.position = c(0.01, 0.98)
   )
 
-# ============================================================
-# OPTIONAL combined figure
-# ============================================================
 p_peak_combo <- p_peak_point / p_heat_relative_enhanced +
   plot_layout(heights = c(1.15, 1))
 
-png("../figures/peak_combo_enhanced.png", width = 7500, height = 5200, res = 300, bg = "white")
-print(p_peak_combo)
-dev.off()
-
+save_png(
+  "../figures/peak_combo_enhanced.png",
+  p_peak_combo,
+  width = 7500,
+  height = 5200
+)
 
 # ============================================================
-# Difference in cumulative infections:
-# Actual boosters vs all other vaccination scenarios
-# using final_results_df
+# Difference in cumulative infections
 # ============================================================
-
 ref_vax <- "Actual boosters"
-
 als_levels <- c("No-ALS Only", "Actual ALS", "ALS-4 Only")
-
 vax_compare_levels <- c(
   "National rate",
   "Slower rate",
@@ -890,21 +975,15 @@ vax_compare_levels <- c(
 
 period_palette <- c(
   "ALS period (≤ Mar 14, 2022)" = "navy",
-  "No-ALS period (> Mar 14, 2022)"    = "darkgreen",
-  "Total"         = "red"
+  "No-ALS period (> Mar 14, 2022)" = "darkgreen",
+  "Total" = "red"
 )
 
-# ------------------------------------------------------------
-# Build cumulative totals by period from total_inc
-# ------------------------------------------------------------
 als_vax_raw <- final_results_df |>
-  filter(
-    matrix == "total_inc",
-    date >= as.Date("2021-12-15")
-  ) |>
+  filter(matrix == "total_inc", date >= booster_start) |>
   group_by(policy, vax_scenario) |>
   summarise(
-    total_cut = max(value[date <= as.Date("2022-03-14")], na.rm = TRUE),
+    total_cut = max(value[date <= cut_date], na.rm = TRUE),
     total_end = max(value, na.rm = TRUE),
     .groups = "drop"
   ) |>
@@ -928,87 +1007,50 @@ als_vax_raw <- final_results_df |>
     )
   )
 
-# ------------------------------------------------------------
-# Keep Actual boosters + all comparison scenarios
-# ------------------------------------------------------------
 als_vax_clean <- als_vax_raw |>
   filter(vax_scenario %in% c(ref_vax, vax_compare_levels))
 
-# ------------------------------------------------------------
-# Reference values: Actual boosters
-# ------------------------------------------------------------
 ref_df <- als_vax_clean |>
   filter(vax_scenario == ref_vax) |>
   select(policy, period, ref_total = total_infections)
 
-# ------------------------------------------------------------
-# Comparison values: all non-reference scenarios
-# ------------------------------------------------------------
 comp_df <- als_vax_clean |>
   filter(vax_scenario != ref_vax) |>
   rename(comparison_vax = vax_scenario)
 
-# ------------------------------------------------------------
-# Compute differences by period
-# diff = Actual boosters - comparison scenario
-# ------------------------------------------------------------
 period_diffs <- comp_df |>
   left_join(ref_df, by = c("policy", "period")) |>
   mutate(diff = ref_total - total_infections) |>
   select(policy, comparison_vax, period, diff)
 
-# ------------------------------------------------------------
-# Compute total difference across both periods
-# ------------------------------------------------------------
 total_diffs <- period_diffs |>
   group_by(policy, comparison_vax) |>
   summarise(diff = sum(diff, na.rm = TRUE), .groups = "drop") |>
   mutate(period = "Total")
 
-# ------------------------------------------------------------
-# Final plotting data
-# ------------------------------------------------------------
 plot_df <- bind_rows(period_diffs, total_diffs) |>
   mutate(
-    period = factor(
-      period,
-      levels = c("ALS period (≤ Mar 14, 2022)", "No-ALS period (> Mar 14, 2022)", "Total")
-    ),
-    comparison_vax = factor(
-      comparison_vax,
-      levels = vax_compare_levels
-    ),
-    policy = factor(
-      policy,
-      levels = als_levels
-    )
+    period = factor(period, levels = c("ALS period (≤ Mar 14, 2022)", "No-ALS period (> Mar 14, 2022)", "Total")),
+    comparison_vax = factor(comparison_vax, levels = vax_compare_levels),
+    policy = factor(policy, levels = als_levels)
   )
 
-# ------------------------------------------------------------
-# Optional nicer x labels
-# ------------------------------------------------------------
-vax_x_labs <- c(
+vax_x_labs2 <- c(
   "National rate"             = "National\nrate",
   "Slower rate"               = "Slower\nrate",
   "Early boosters (-35 Days)" = "Early\nboosters\n(-35 Days)",
   "Faster rate"               = "Faster\nrate"
 )
 
-# ------------------------------------------------------------
-# Plot
-# ------------------------------------------------------------
 p_actual_vs_all_vax <- ggplot(
   plot_df,
   aes(x = comparison_vax, y = diff, fill = period)
 ) +
   geom_hline(yintercept = 0, linewidth = 0.4, colour = "grey40") +
-  geom_col(
-    position = position_dodge(width = 0.75),
-    width = 0.6
-  ) +
+  geom_col(position = position_dodge(width = 0.75), width = 0.6) +
   facet_wrap(~ policy, nrow = 1, scales = "free_y") +
   scale_fill_manual(values = period_palette, name = "Period") +
-  scale_x_discrete(labels = vax_x_labs) +
+  scale_x_discrete(labels = vax_x_labs2) +
   scale_y_continuous(labels = scales::comma) +
   labs(
     x = "Vaccination scenarios",
@@ -1033,15 +1075,16 @@ p_actual_vs_all_vax <- ggplot(
     legend.background = element_blank(),
     legend.spacing.x = unit(0.35, "cm"),
     legend.margin = margin(t = 8, r = 8, b = 8, l = 8),
-    plot.title = element_text(size = 40, face = "plain", hjust = 0.5),
-    plot.background = element_blank(),
+    plot.title = element_text(size = 40, hjust = 0.5),
     panel.grid.major.x = element_blank(),
     panel.spacing = unit(2, "cm")
   )
 
-print(p_actual_vs_all_vax)
+save_png(
+  "../figures/actual_boosters_vs_all_vax_diffs.png",
+  p_actual_vs_all_vax,
+  width = 9000,
+  height = 3500
+)
 
-png("../figures/actual_boosters_vs_all_vax_diffs.png",width = 9000,height = 4500,res = 300,bg = "white",type = "cairo")
-print(p_actual_vs_all_vax)
-dev.off()
 

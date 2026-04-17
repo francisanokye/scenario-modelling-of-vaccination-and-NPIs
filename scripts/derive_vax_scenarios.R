@@ -17,9 +17,9 @@ loadEnvironments()
 # ============================================================
 # Constants
 # ============================================================
-NL_POP        <- 510550
-CA_POP        <- 36991981
-eligible_pop  <- 426198
+NL_POP          <- 510550
+CA_POP          <- 36991981
+eligible_pop    <- 426198
 
 init_date       <- as.Date("2021-07-24")
 booster_start   <- as.Date("2021-11-08")
@@ -34,8 +34,6 @@ booster_offset  <- 150
 target_date       <- as.Date("2022-01-11")
 target_cumulative <- 106730
 shape_power       <- 1.8
-
-day0 <- as.Date("2021-12-17") - lubridate::days(booster_offset)
 
 clip01 <- function(x) pmin(pmax(x, 0), 1)
 
@@ -119,7 +117,7 @@ df_true <- df_raw |>
   )
 
 # ============================================================
-# Redistribute post-flat jumps backward
+# redistribute post-flat jumps backward
 # ============================================================
 redistribute_postflat_jumps <- function(df, backlog_end) {
   df <- df |>
@@ -160,13 +158,14 @@ redistribute_postflat_jumps <- function(df, backlog_end) {
 }
 
 # ============================================================
-# Process observed booster data
+# process observed booster data
 # ============================================================
 nl_actual <- bind_rows(df_imputed, df_true) |>
   arrange(week_end) |>
   redistribute_postflat_jumps(backlog_end = backlog_end) |>
   mutate(
     corrected_value = pmax(corrected_value, 0),
+    corrected_value = pmin(corrected_value, eligible_pop),
     corrected_value = cummax(corrected_value),
     cum_prop        = corrected_value / eligible_pop,
     daily_inc_star  = (corrected_value - lag(corrected_value, default = 0)) / 7,
@@ -174,7 +173,7 @@ nl_actual <- bind_rows(df_imputed, df_true) |>
   )
 
 # ============================================================
-# Build baseline daily cumulative rollout
+# build baseline daily cumulative rollout
 # ============================================================
 daily_dates <- seq(booster_start, study_end, by = "1 day")
 
@@ -207,7 +206,7 @@ daily_base <- tibble(date = daily_dates) |>
   ungroup()
 
 # ============================================================
-# Time-warp cumulative rollout
+# time-warp cumulative rollout
 # ============================================================
 make_rollout_scenario <- function(df, speed = 1, shift_days = 0, label) {
   base_dates <- df$date
@@ -251,7 +250,7 @@ make_rollout_scenario <- function(df, speed = 1, shift_days = 0, label) {
 }
 
 # ============================================================
-# Vaccination scenarios
+# vaccination scenarios
 # ============================================================
 daily_scenarios_df <- bind_rows(
   make_rollout_scenario(daily_base, speed = 1.00,  shift_days =   0, label = "Actual Boosters"),
@@ -272,18 +271,6 @@ weekly_scenarios_df <- daily_scenarios_df |>
     cum_val     = max(cum_val, na.rm = TRUE),
     .groups = "drop"
   )
-
-# ============================================================
-# Build model-ready booster inputs (daily)
-# ============================================================
-booster_inputs_df <- daily_scenarios_df |>
-  transmute(
-    scenario,
-    date,
-    day = as.integer(date - init_date),
-    booster_vac_value = as.numeric(daily_rate)
-  ) |>
-  arrange(scenario, day)
 
 # ============================================================
 # Plot styling
@@ -307,9 +294,6 @@ theme_pub <- theme_clean() +
     plot.background = element_blank()
   )
 
-actual_stars <- nl_actual |>
-  filter(week_end <= cutoff_date)
-
 vax_cols <- c(
   "Slower Rate"               = "magenta",
   "Early Boosters (-35 Days)" = "blue",
@@ -319,31 +303,32 @@ vax_cols <- c(
 )
 
 # ============================================================
-# Replace early Actual Boosters rows with starred rows
+# IMPORTANT FIX:
+# Use reconstructed Actual Boosters for the FULL period,
+# not only to cutoff_date
 # ============================================================
-weekly_scenarios_df <- weekly_scenarios_df |>
-  mutate(is_star = FALSE) |>
-  filter(!(scenario == "Actual Boosters" & week_end <= cutoff_date))
-
-actual_stars2 <- actual_stars |>
+actual_series_full <- nl_actual |>
   transmute(
     week_end,
     weekly_rate = weekly_inc_star,
     cum_prop,
     cum_val = corrected_value,
-    is_star = TRUE,
+    is_star = week_end <= cutoff_date,
     scenario = "Actual Boosters"
   )
 
-missing_cols_star <- setdiff(names(weekly_scenarios_df), names(actual_stars2))
-for (cc in missing_cols_star) actual_stars2[[cc]] <- NA
-actual_stars2 <- actual_stars2[, names(weekly_scenarios_df)]
+weekly_scenarios_df <- weekly_scenarios_df |>
+  mutate(is_star = FALSE) |>
+  filter(scenario != "Actual Boosters")
 
-weekly_scenarios_df <- bind_rows(weekly_scenarios_df, actual_stars2)
+missing_cols_actual <- setdiff(names(weekly_scenarios_df), names(actual_series_full))
+for (cc in missing_cols_actual) actual_series_full[[cc]] <- NA
+actual_series_full <- actual_series_full[, names(weekly_scenarios_df)]
+
+weekly_scenarios_df <- bind_rows(weekly_scenarios_df, actual_series_full)
 
 # ============================================================
-# Add National Rate from full weekly-rate series
-# This removes the gap and avoids sparse plotting-only points
+# add national rate from full weekly-rate series
 # ============================================================
 national_rate_df <- canada_weekly_vax_nl |>
   arrange(week_end) |>
@@ -353,7 +338,8 @@ national_rate_df <- canada_weekly_vax_nl |>
     weekly_rate   = pmax(weekly_rate, 0),
     cum_boosters  = cumsum(weekly_rate),
     cum_boosters  = cummax(cum_boosters),
-    cum_prop      = clip01(cum_boosters / NL_POP),
+    cum_boosters  = pmin(cum_boosters, eligible_pop),
+    cum_prop      = clip01(cum_boosters / eligible_pop),
     cum_val       = cum_boosters,
     is_star       = FALSE,
     scenario      = "National Rate"
@@ -365,7 +351,7 @@ weekly_scenarios_df <- weekly_scenarios_df |>
   bind_rows(national_rate_df)
 
 # ============================================================
-# Remove duplicates and enforce valid cumulative behaviour
+# remove duplicates and enforce valid cumulative behaviour
 # ============================================================
 weekly_scenarios_df <- weekly_scenarios_df |>
   arrange(scenario, week_end) |>
@@ -381,21 +367,47 @@ weekly_scenarios_df <- weekly_scenarios_df |>
   arrange(week_end, .by_group = TRUE) |>
   mutate(
     cum_val       = pmax(cum_val, 0),
+    cum_val       = pmin(cum_val, eligible_pop),
     cum_val       = cummax(cum_val),
     cum_boosters  = cum_val,
-    cum_prop      = clip01(cum_boosters / NL_POP),
+    cum_prop      = clip01(cum_boosters / eligible_pop),
     weekly_rate   = c(cum_boosters[1], diff(cum_boosters)),
     weekly_rate   = pmax(weekly_rate, 0)
   ) |>
   ungroup()
 
-# strict check: no duplicates remain
 dup_check <- weekly_scenarios_df |>
   count(scenario, week_end) |>
   filter(n > 1)
 
 stopifnot(nrow(dup_check) == 0)
 stopifnot(all(weekly_scenarios_df$cum_prop >= 0))
+
+# ============================================================
+# build final model-ready booster inputs (daily)
+# ============================================================
+booster_inputs_df <- weekly_scenarios_df |>
+  arrange(scenario, week_end) |>
+  group_by(scenario) |>
+  mutate(
+    daydiff = as.numeric(week_end - lag(week_end, default = week_end[1] - 7)),
+    interval_start = week_end - (daydiff - 1)
+  ) |>
+  ungroup() |>
+  tidyr::uncount(weights = daydiff, .remove = FALSE) |>
+  group_by(scenario, week_end) |>
+  mutate(
+    date = seq(min(interval_start), max(week_end), by = "day"),
+    booster_vac_value = weekly_rate / first(daydiff)
+  ) |>
+  ungroup() |>
+  transmute(
+    scenario,
+    date,
+    day = as.integer(date - init_date),
+    booster_vac_value = as.numeric(booster_vac_value)
+  ) |>
+  arrange(scenario, day)
 
 # ============================================================
 # Plot

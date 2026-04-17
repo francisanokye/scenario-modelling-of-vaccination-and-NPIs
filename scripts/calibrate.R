@@ -43,7 +43,7 @@ seroprevdata <- rdsRead("seroprevdata.rds")
 fitserodata <- rdsRead("fitsero.rds")
 time_steps = max(seroprevdata$time)
 upper_plot_time = 300
-sim_horizon = 500
+sim_horizon = 530
 date0 = as.Date("2021-12-15")
 
 # construct spline basis for beta(t)
@@ -423,5 +423,4 @@ actual_diagnostic = (calibrator
 
 # save fitted calibrator
 rdsSave(calibrator)
-
 

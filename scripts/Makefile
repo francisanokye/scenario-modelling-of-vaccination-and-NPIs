@@ -96,7 +96,7 @@ derive_vax_scenarios.Rout: derive_vax_scenarios.R initial_can_rate.rda ../data/v
 simulation_vax_scenarios.Rout: simulation_vax_scenarios.R calibrate.rds base_beta.rds beta_als4.rds policy_neutral.rds build_multipliers.rds fitsero.rds seroprevdata.rds params.rda derive_vax_scenarios.rda  ../data/serop_avgcase_data.csv params.rda
 	$(pipeR)
 
-extension_als4.Rout: extension_als4.R calibrate.rds base_beta.rds beta_als4.rds beta_ALS4_14days_only.rds beta_ALS4_28days_only.rds beta_ALS4_40days_only.rds beta_ALS4_60days_only.rds beta_ALS4_90days_only.rds beta_ALS4_120days_only.rds beta_ALS4_150days_only.rds beta_ALS4_180days_only.rds build_multipliers.rds fitsero.rds seroprevdata.rds derive_vax_scenarios.rda params.rda  ../data/serop_avgcase_data.csv params.rda 
+extension_als4.Rout: extension_als4.R calibrate.rds beta_ALS4_14days_only.rds beta_ALS4_28days_only.rds beta_ALS4_40days_only.rds beta_ALS4_60days_only.rds beta_ALS4_90days_only.rds beta_ALS4_120days_only.rds beta_ALS4_150days_only.rds beta_ALS4_180days_only.rds build_multipliers.rds fitsero.rds params.rda ../data/serop_avgcase_data.csv 
 	$(pipeR)
 	
 Ignore += makestuff

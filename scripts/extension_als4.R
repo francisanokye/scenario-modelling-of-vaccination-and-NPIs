@@ -1,4 +1,3 @@
-
 suppressPackageStartupMessages({
   library(dplyr)
   library(tidyr)
@@ -10,6 +9,7 @@ suppressPackageStartupMessages({
   library(scales)
   library(grid)
   library(patchwork)
+  library(lubridate)
 })
 
 set.seed(2025)
@@ -22,6 +22,7 @@ options(scipen = 9999)
 # CONFIG
 # ============================================================
 init_date      <- as.Date("2021-07-24")
+booster_start  <- as.Date("2021-11-08")
 analysis_start <- as.Date("2021-12-15")
 analysis_end   <- as.Date("2022-05-22")
 cut_date       <- as.Date("2022-03-14")
@@ -44,8 +45,8 @@ ensure_dir(fig_dir)
 # ============================================================
 # INPUTS
 # ============================================================
-calibrator    <- rdsRead("calibrate")
-fitserodata   <- rdsRead("fitsero.rds")
+calibrator  <- rdsRead("calibrate")
+fitserodata <- rdsRead("fitsero.rds")
 
 # ALS-4 duration beta series
 padded_beta_ALS4_14days  <- rdsRead("beta_ALS4_14days")
@@ -57,38 +58,45 @@ padded_beta_ALS4_120days <- rdsRead("beta_ALS4_120days")
 padded_beta_ALS4_150days <- rdsRead("beta_ALS4_150days")
 padded_beta_ALS4_180days <- rdsRead("beta_ALS4_180days")
 
-booster_offset <- 150
-sim_horizon    <- 500
-day0           <- as.Date("2021-11-08") - lubridate::days(booster_offset)
-date0          <- as.Date("2021-12-15")
+sim_horizon <- 500
 new_V2_init <- 277707
 
-# weekly_scenarios_df should already exist from your vaccination-scenario script
-weekly_scenarios_df <- weekly_scenarios_df
+stopifnot(exists("booster_inputs_df"))
 
 # ============================================================
 # HELPERS
+# Use FINAL DAILY booster inputs directly
 # ============================================================
 generate_scenario_boosters <- function(scenario_name) {
-  booster_inputs_df <- weekly_scenarios_df |>
+  scenario_daily <- booster_inputs_df |>
     dplyr::filter(scenario == scenario_name) |>
-    dplyr::select(week_end, scenario, weekly_rate) |>
-    mutate(
-      daydiff = as.numeric(week_end - lag(week_end, default = week_end[1] - 7)),
-      daily_rate = weekly_rate / daydiff,
-      days = as.numeric(week_end - day0)
+    dplyr::transmute(
+      changepoints = as.integer(day),
+      vac_values   = as.numeric(booster_vac_value)
     ) |>
-    dplyr::filter(between(days, 0, 159 + booster_offset))
+    dplyr::arrange(changepoints) |>
+    dplyr::group_by(changepoints) |>
+    dplyr::summarise(
+      vac_values = sum(vac_values, na.rm = TRUE),
+      .groups = "drop"
+    )
   
-  changepoints <- booster_inputs_df$days - (booster_offset %% 7) - 1
-  values <- booster_inputs_df$daily_rate
-  
-  if (!any(changepoints == 0)) {
-    changepoints <- c(0, changepoints)
-    values <- c(0, values)
+  if (nrow(scenario_daily) == 0) {
+    stop(paste("No booster_inputs_df rows found for scenario:", scenario_name))
   }
   
-  return(list(changepoints = changepoints, vac_values = values))
+  if (!any(scenario_daily$changepoints == 0)) {
+    scenario_daily <- bind_rows(
+      tibble(changepoints = 0L, vac_values = 0),
+      scenario_daily
+    ) |>
+      arrange(changepoints)
+  }
+  
+  list(
+    changepoints = scenario_daily$changepoints,
+    vac_values   = scenario_daily$vac_values
+  )
 }
 
 set_booster_vax <- function(booster_days, booster_vals) {
@@ -101,9 +109,9 @@ set_booster_vax <- function(booster_days, booster_vals) {
   spec
 }
 
-
 update_vax_spec_beta <- function(spec, new_beta) {
   stopifnot(length(new_beta) == spec$default$time_steps)
+  
   spec |>
     mp_tmb_delete(phase = "before", at = 26L) |>
     mp_tmb_delete(phase = "before", at = 26L) |>
@@ -112,23 +120,25 @@ update_vax_spec_beta <- function(spec, new_beta) {
 
 # ============================================================
 # BASE SPEC + VACCINATION SCENARIO SPECS
-# IMPORTANT:
-# use exact source names from weekly_scenarios_df here
 # ============================================================
 spec_fixed <- mp_optimized_spec(calibrator, "modified")
 time_steps <- spec_fixed$default$time_steps
 
-# source scenario names from weekly_scenarios_df
+actual_res <- generate_scenario_boosters("Actual Boosters")
 slower_res <- generate_scenario_boosters("Slower Rate")
 faster_res <- generate_scenario_boosters("Faster Rate")
 early_res  <- generate_scenario_boosters("Early Boosters (-35 Days)")
 natl_res   <- generate_scenario_boosters("National Rate")
 
+spec_actual <- set_booster_vax(actual_res$changepoints, actual_res$vac_values)
 spec_slower <- set_booster_vax(slower_res$changepoints, slower_res$vac_values)
 spec_faster <- set_booster_vax(faster_res$changepoints, faster_res$vac_values)
 spec_early  <- set_booster_vax(early_res$changepoints,  early_res$vac_values)
 spec_natl   <- set_booster_vax(natl_res$changepoints,   natl_res$vac_values)
-spec_natl <- spec_natl |> 
+
+# IMPORTANT:
+# apply V2_init override to National rate only
+spec_natl <- spec_natl |>
   mp_tmb_insert(default = list(V2_init = new_V2_init))
 
 # display order used everywhere
@@ -142,7 +152,7 @@ vax_order <- c(
 
 # display-name spec list
 vax_scenario_specs <- list(
-  "Actual boosters"           = spec_fixed,
+  "Actual boosters"           = spec_actual,
   "Slower rate"               = spec_slower,
   "Faster rate"               = spec_faster,
   "Early boosters (-35 Days)" = spec_early,
@@ -193,11 +203,14 @@ for (i in seq_len(n_sims)) {
 
 for (i in seq_len(n_sims)) {
   all_sim_results[[i]] <- spec_list[[i]] |>
-    mp_simulator(time_steps = sim_horizon, outputs = c("inc", "total_inc")) |>
+    mp_simulator(
+      time_steps = sim_horizon,
+      outputs = c("inc", "total_inc")
+    ) |>
     mp_trajectory() |>
     pivot_wider(names_from = matrix, values_from = value) |>
     mutate(
-      date = date0 + (time - booster_offset),
+      date = init_date + time,
       als4_days = sim_grid$als4_days[i],
       vax_scenario = sim_grid$vax_name[i]
     )
