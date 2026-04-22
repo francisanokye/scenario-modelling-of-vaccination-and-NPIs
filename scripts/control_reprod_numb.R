@@ -22,8 +22,8 @@ loadEnvironments()
 calibrator     <- readRDS("calibrate.rds")
 seroprevdata   <- readRDS("seroprevdata.rds")
 
-beta_ALS4only  <- rdsRead("beta_als4")         # numeric vector: beta(t) under ALS-4 only
-beta_noALS     <- rdsRead("policy_neutral")    # numeric vector: beta(t) under No-ALS
+beta_ALS4only  <- rdsRead("beta_als4")         
+beta_noALS     <- rdsRead("policy_neutral")    
 
 upper_plot_time <- 300
 offset0         <- 150

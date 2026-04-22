@@ -19,10 +19,7 @@ double_daily_vac <- nl_additional |>
 
 booster_daily_vac <- booster_inputs_df |>
   dplyr::filter(scenario == "Actual Boosters") |>
-  dplyr::transmute(
-    days = as.integer(day),
-    daily_rate = as.numeric(booster_vac_value)
-  ) |>
+  dplyr::transmute(days = as.integer(day), daily_rate = as.numeric(booster_vac_value)) |>
   dplyr::arrange(days) |>
   dplyr::group_by(days) |>
   dplyr::summarise(

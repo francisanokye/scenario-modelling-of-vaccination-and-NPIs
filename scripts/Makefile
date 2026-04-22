@@ -14,7 +14,7 @@ vim_session:
 Sources += Makefile
 Sources += $(wildcard *.R)
 
-## Example of accumulator
+## Example of accumulator - Thank you
 sir.Rout: sir.R
 	$(pipeR)
 
@@ -27,7 +27,7 @@ params.Rout: params.R vacdat.rda
 flows.Rout: flows.R params.rda 
 	$(pipeR)
 
-timevar_spec.Rout: timevar_spec.R flows.rda vacdat.rda derive_vax_scenarios.rda params.rda 
+timevar_spec.Rout: timevar_spec.R flows.rda vacdat.rda combine_vax_scenarios.rda params.rda # vax_scenario_setup.rda 
 	$(pipeR)
 	
 seroprevdata.Rout: seroprevdata.R params.rda ../data/raw_citf_data.csv    
@@ -87,16 +87,42 @@ beta_ALS4_180days_only.Rout: beta_ALS4_180days_only.R build_multipliers.rds cali
 control_reprod_numb.Rout: control_reprod_numb.R beta_als4.rds policy_neutral.rds seroprevdata.rds fitsero.rds params.rda calibrate.rds
 	$(pipeR)
 
+### Derive vaccination scenarios
 initial_can_rate.Rout: initial_can_rate.R ../data/vaccination-coverage-map.csv 
 	$(pipeR)
-
-derive_vax_scenarios.Rout: derive_vax_scenarios.R initial_can_rate.rda ../data/vaccination-coverage-map.csv 
+	
+vax_scenario_setup.Rout: vax_scenario_setup.R ../data/vaccination-coverage-map.csv 
 	$(pipeR)
 
-simulation_vax_scenarios.Rout: simulation_vax_scenarios.R calibrate.rds base_beta.rds beta_als4.rds policy_neutral.rds build_multipliers.rds fitsero.rds seroprevdata.rds params.rda derive_vax_scenarios.rda  ../data/serop_avgcase_data.csv params.rda
+vax_actual_boosters.Rout: vax_actual_boosters.R vax_scenario_setup.rda
 	$(pipeR)
 
-extension_als4.Rout: extension_als4.R calibrate.rds beta_ALS4_14days_only.rds beta_ALS4_28days_only.rds beta_ALS4_40days_only.rds beta_ALS4_60days_only.rds beta_ALS4_90days_only.rds beta_ALS4_120days_only.rds beta_ALS4_150days_only.rds beta_ALS4_180days_only.rds build_multipliers.rds fitsero.rds params.rda ../data/serop_avgcase_data.csv 
+vax_early_boosters.Rout: vax_early_boosters.R vax_scenario_setup.rda
+	$(pipeR)
+
+vax_faster_rate.Rout: vax_faster_rate.R vax_scenario_setup.rda
+	$(pipeR)
+
+vax_slower_rate.Rout: vax_slower_rate.R vax_scenario_setup.rda
+	$(pipeR)
+
+vax_national_rate.Rout: vax_national_rate.R initial_can_rate.rda vax_scenario_setup.rda
+	$(pipeR)
+
+combine_vax_scenarios.Rout: combine_vax_scenarios.R vax_scenario_setup.rda vax_actual_boosters.rda vax_early_boosters.rda \
+	vax_faster_rate.rda \
+	vax_slower_rate.rda \
+	vax_national_rate.rda
+	$(pipeR)	
+
+### Simulate trajectories for ALS policies and vaccination scenarios
+simulate_als_vax_scenarios.Rout: simulate_als_vax_scenarios.R calibrate.rds base_beta.rds beta_als4.rds policy_neutral.rds \
+	build_multipliers.rds fitsero.rds seroprevdata.rds params.rda combine_vax_scenarios.rda  ../data/serop_avgcase_data.csv params.rda
+	$(pipeR)
+
+extension_als4.Rout: extension_als4.R calibrate.rds beta_ALS4_14days_only.rds beta_ALS4_28days_only.rds beta_ALS4_40days_only.rds \
+	beta_ALS4_60days_only.rds beta_ALS4_90days_only.rds beta_ALS4_120days_only.rds beta_ALS4_150days_only.rds beta_ALS4_180days_only.rds \
+	build_multipliers.rds fitsero.rds params.rda combine_vax_scenarios.rda ../data/serop_avgcase_data.csv 
 	$(pipeR)
 	
 Ignore += makestuff

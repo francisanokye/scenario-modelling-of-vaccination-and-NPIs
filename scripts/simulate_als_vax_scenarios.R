@@ -71,10 +71,7 @@ generate_scenario_boosters <- function(scenario_name) {
   scenario_daily <- booster_inputs_df |>
     filter(scenario == scenario_name) |>
     arrange(day) |>
-    transmute(
-      changepoints = as.integer(day),
-      vac_values   = as.numeric(booster_vac_value)
-    )
+    transmute(changepoints = as.integer(day), vac_values   = as.numeric(booster_vac_value))
 
   if (nrow(scenario_daily) == 0) {
     stop(paste("No booster_inputs_df rows found for scenario:", scenario_name))
@@ -96,11 +93,9 @@ generate_scenario_boosters <- function(scenario_name) {
       arrange(changepoints)
   }
 
-  list(
-    changepoints = scenario_daily$changepoints,
-    vac_values   = scenario_daily$vac_values
-  )
-}
+  list(changepoints = scenario_daily$changepoints, vac_values   = scenario_daily$vac_values)
+  
+  }
 
 # ============================================================
 # replace booster schedule in calibrated spec
@@ -1054,8 +1049,8 @@ p_actual_vs_all_vax <- ggplot(
   scale_y_continuous(labels = scales::comma) +
   labs(
     x = "Vaccination scenarios",
-    y = expression(Delta * " cumulative infections (Actual boosters - alternative scenario)"),
-    title = "Difference in cumulative infections: Actual boosters vs all vaccination scenarios"
+    y = expression(Delta * " cumulative infections"),
+    title = "Change in cumulative infections: Actual boosters vs all vaccination scenarios"
   ) +
   theme_clean() +
   theme(

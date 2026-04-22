@@ -314,9 +314,6 @@ png("../figures/canada_scaled_to_nl_boosters_corrected.png",width = 5000, height
 print(p_all)
 dev.off()
 
-print(can_init_vax_for_nl)
-# ============================================================
-# SAVE
-# ============================================================
+# save
 saveVars(can_init_vax_for_nl, can_weekly_nl_inputs, ca_weekly_pts, ca_daily_nl_scaled)
-
+# saveVars(canada_init_vax_nl, canada_weekly_vax_nl, ca_weekly_pts, canada_daily_vax_nl)
