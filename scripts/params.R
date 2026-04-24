@@ -20,8 +20,8 @@ params <- c(beta = 0.1
             , N = 510550
             , V2_init = V2_init
             
-            , double_vac = 0 
-            , booster_shot = 0 
+            , double_vac = 0
+            , booster_shot = 0
 )
 
 # ~95% prior interval

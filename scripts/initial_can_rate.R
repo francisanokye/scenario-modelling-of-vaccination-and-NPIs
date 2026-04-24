@@ -310,9 +310,9 @@ p_cum <- ggplot(ca_daily_nl_scaled, aes(x = date, y = nl_scaled_cum)) +
 p_all <- p_prop / p_cum
 print(p_all)
 
-png("../figures/canada_scaled_to_nl_boosters_corrected.png",width = 5000, height = 5200, res = 300, bg = "white")
-print(p_all)
-dev.off()
+# png("../figures/canada_scaled_to_nl_boosters_corrected.png",width = 5000, height = 5200, res = 300, bg = "white")
+# print(p_all)
+# dev.off()
 
 # save
 saveVars(can_init_vax_for_nl, can_weekly_nl_inputs, ca_weekly_pts, ca_daily_nl_scaled)

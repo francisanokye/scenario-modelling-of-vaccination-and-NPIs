@@ -12,9 +12,10 @@ Try executing this chunk by clicking the *Run* button within the chunk or by pla
 library(magick)
 
 # input images 
-img_path1 <- "../figures/cumulative_vax_rate.png"
+
 # img_path2 <- "../figures/booster_shots_policy.png"
-img_path2 <- "../figures/control_reprod_numb.png"
+img_path1 <- "../figures/control_reprod_numb.png"
+img_path2 <- "../figures/cumulative_vax_rate.png"
 
 
 # read images (original resolution preserved)

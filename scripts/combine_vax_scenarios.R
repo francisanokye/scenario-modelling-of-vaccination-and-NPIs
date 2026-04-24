@@ -102,19 +102,20 @@ theme_pub <- theme_clean() +
     axis.text.x = element_text(size = 25, hjust = 1, angle = 45),
     axis.text.y = element_text(size = 25),
     axis.title.y = element_text(size = 30, color = "black"),
-    legend.position = c(0.70, 0.5),
+    legend.position = c(0.8, 0.35),
     legend.justification = "center",
-    legend.direction = "horizontal",
-    legend.box = "horizontal",
+    legend.direction = "vertical",
+    legend.box = "vertical",
     legend.box.just = "center",
     legend.title = element_blank(),
     legend.text = element_text(size = 25),
     legend.background = element_blank(),
-    legend.spacing.x = unit(0.35, "cm"),
     legend.margin = margin(t = 8, r = 8, b = 8, l = 8),
+    legend.key.height = unit(1.2, "cm"),   
+    legend.spacing.y  = unit(1.5, "cm"), 
     plot.title = element_text(size = 35, face = "plain", hjust = 0.5),
     plot.background = element_blank()
-  )
+  ) 
 
 vax_cols <- c(
   "Slower Rate"               = "magenta",
@@ -200,7 +201,7 @@ pp <- ggplot(plot_data) +
     x = NULL
   ) +
   theme_pub +
-  guides(colour = guide_legend(nrow = 1, byrow = TRUE)) +
+  guides(color = guide_legend(ncol = 1)) +
   labs(tag = "B") +
   theme(
     plot.tag = element_text(size = 35, face = "bold", colour = "black"),

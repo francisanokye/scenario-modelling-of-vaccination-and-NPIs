@@ -47,4 +47,6 @@ scenario_booster_inputs_df_slower <- scenario_weekly_df_slower |>
   ) |>
   arrange(day)
 
+print(scenario_booster_inputs_df_slower, n = Inf)
+
 saveVars(scenario_daily_df_slower, scenario_weekly_df_slower, scenario_booster_inputs_df_slower)

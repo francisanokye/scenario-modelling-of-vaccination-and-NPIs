@@ -256,7 +256,7 @@ for (i in seq_len(n_sims)) {
   sim_dat <- spec_list[[i]] |>
     mp_simulator(
       sim_horizon,
-      outputs = c("cum_booster", "total_inc", "inc")
+      outputs = c("cum_booster", "total_inc", "inc") # mp_state_vars(spec_list[[i]]), 
     ) |>
     mp_trajectory() |>
     mutate(
@@ -671,21 +671,21 @@ vax_order_fixed <- c(
   "Slower rate",
   "Actual boosters",
   "National rate",
-  "Faster rate",
-  "Early boosters (-35 Days)"
+  "Early boosters (-35 Days)",
+  "Faster rate"
 )
 
 vax_x_labs <- c(
   "Slower rate"               = "Slower\nrate",
   "National rate"             = "National\nrate",
   "Actual boosters"           = "Actual\nboosters",
-  "Faster rate"               = "Faster\nrate",
-  "Early boosters (-35 Days)" = "Early\nboosters\n(-35 Days)"
+  "Early boosters (-35 Days)" = "Early\nboosters\n(-35 Days)",
+  "Faster rate"               = "Faster\nrate"
 )
 
 period_cols <- c(
   "ALS period (≤ Mar 14, 2022)"    = "blue",
-  "No-ALS period (> Mar 14, 2022)" = "pink4"
+  "No-ALS period (> Mar 14, 2022)" = "goldenrod"
 )
 
 totals_split_df <- final_results_df |>
@@ -801,8 +801,8 @@ peak_df <- final_results_df |>
 
 vax_peak_labs <- c(
   "Slower rate"               = "Slower\nboosters",
-  "National rate"             = "National\nrate",
   "Actual boosters"           = "Actual\nboosters",
+  "National rate"             = "National\nrate",
   "Faster rate"               = "Faster\nboosters",
   "Early boosters (-35 Days)" = "Earlier\nboosters\n(-35 days)"
 )
@@ -889,8 +889,8 @@ heat_df_rel <- heat_df |>
 
 vax_y_labs <- c(
   "Slower rate"               = "Slower rate",
-  "National rate"             = "National rate",
   "Actual boosters"           = "Actual boosters",
+  "National rate"             = "National rate",
   "Faster rate"               = "Faster rate",
   "Early boosters (-35 Days)" = "Earlier\nboosters\n(-35 days)"
 )
@@ -1057,7 +1057,7 @@ p_actual_vs_all_vax <- ggplot(
     axis.text.x = element_text(size = 28, hjust = 0.5, angle = 0),
     axis.text.y = element_text(size = 28),
     axis.title.x = element_text(size = 28, color = "black"),
-    axis.title.y = element_text(size = 28, color = "black"),
+    axis.title.y = element_text(size = 30, color = "black"),
     strip.text = element_text(size = 30),
     strip.background = element_rect(fill = "gray"),
     legend.position = "bottom",
@@ -1070,7 +1070,7 @@ p_actual_vs_all_vax <- ggplot(
     legend.background = element_blank(),
     legend.spacing.x = unit(0.35, "cm"),
     legend.margin = margin(t = 8, r = 8, b = 8, l = 8),
-    plot.title = element_text(size = 40, hjust = 0.5),
+    plot.title = element_text(size = 40, hjust = 0.5, face = "plain"),
     panel.grid.major.x = element_blank(),
     panel.spacing = unit(2, "cm")
   )

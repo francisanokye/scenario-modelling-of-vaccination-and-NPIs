@@ -115,6 +115,27 @@ combine_vax_scenarios.Rout: combine_vax_scenarios.R vax_scenario_setup.rda vax_a
 	vax_national_rate.rda
 	$(pipeR)	
 
+### Simulate trajectories for ALS policies and each vaccination scenarios
+actual_boosters__sim.Rout: actual_boosters__sim.R calibrate.rds base_beta.rds beta_als4.rds policy_neutral.rds \
+	build_multipliers.rds fitsero.rds seroprevdata.rds params.rda combine_vax_scenarios.rda  ../data/serop_avgcase_data.csv params.rda
+	$(pipeR)
+
+early_boosters__sim.Rout: early_boosters__sim.R calibrate.rds base_beta.rds beta_als4.rds policy_neutral.rds \
+	build_multipliers.rds fitsero.rds seroprevdata.rds params.rda combine_vax_scenarios.rda  ../data/serop_avgcase_data.csv params.rda
+	$(pipeR)
+
+faster_rate__sim.Rout: faster_rate__sim.R calibrate.rds base_beta.rds beta_als4.rds policy_neutral.rds \
+	build_multipliers.rds fitsero.rds seroprevdata.rds params.rda combine_vax_scenarios.rda  ../data/serop_avgcase_data.csv params.rda
+	$(pipeR)
+
+slower_rate__sim.Rout: slower_rate__sim.R calibrate.rds base_beta.rds beta_als4.rds policy_neutral.rds \
+	build_multipliers.rds fitsero.rds seroprevdata.rds params.rda combine_vax_scenarios.rda  ../data/serop_avgcase_data.csv params.rda
+	$(pipeR)
+
+national_rate__sim.Rout: national_rate__sim.R calibrate.rds base_beta.rds beta_als4.rds policy_neutral.rds \
+	build_multipliers.rds fitsero.rds seroprevdata.rds params.rda combine_vax_scenarios.rda  ../data/serop_avgcase_data.csv params.rda
+	$(pipeR)
+
 ### Simulate trajectories for ALS policies and vaccination scenarios
 simulate_als_vax_scenarios.Rout: simulate_als_vax_scenarios.R calibrate.rds base_beta.rds beta_als4.rds policy_neutral.rds \
 	build_multipliers.rds fitsero.rds seroprevdata.rds params.rda combine_vax_scenarios.rda  ../data/serop_avgcase_data.csv params.rda
