@@ -14,7 +14,7 @@ vim_session:
 Sources += Makefile
 Sources += $(wildcard *.R)
 
-## Example of accumulator - Thank you
+## Example of accumulator
 sir.Rout: sir.R
 	$(pipeR)
 
@@ -38,7 +38,11 @@ fitsero.Rout: fitsero.R seroprevdata.rds ../data/raw_citf_data.csv params.rda
 
 calibrate.Rout: calibrate.R timevar_spec.rds seroprevdata.rds fitsero.rds params.rda
 	$(pipeR)
-	
+
+## This is francis' calibrate script.
+calibrate_old.Rout: calibrate_old.R timevar_spec.rds seroprevdata.rds fitsero.rds params.rda
+	$(pipeR)
+
 build_multipliers.Rout: build_multipliers.R seroprevdata.rds params.rda calibrate.rds fitsero.rds ../data/serop_avgcase_data.csv params.rda
 	$(pipeR)
 	

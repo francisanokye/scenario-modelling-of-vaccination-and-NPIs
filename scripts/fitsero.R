@@ -1,4 +1,4 @@
-
+## What is going on here? We are first fitting to the broken/piecewise serology data and then make it daily to fit in macpan2?
 library(tidyverse)
 library(splines)
 library(shellpipes)

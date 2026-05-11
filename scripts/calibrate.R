@@ -25,18 +25,6 @@ conflicted::conflicts_prefer(dplyr::filter)
 
 spline_beta = TRUE
 
-fig_dir   <- "../figures"
-# diag_dir  <- file.path(fig_dir, "diagnostics_actual")
-# posterior_dir <- file.path(fig_dir, "posterior")
-ensure_dir <- function(path) {
-  if (!dir.exists(path)) dir.create(path, recursive = TRUE)
-  invisible(path)
-}
-
-ensure_dir(fig_dir)
-# ensure_dir(diag_dir)
-# ensure_dir(posterior_dir)
-
 # load input data
 timevar_spec <- rdsRead("timevar_spec.rds")
 seroprevdata <- rdsRead("seroprevdata.rds")
@@ -44,6 +32,7 @@ fitserodata <- rdsRead("fitsero.rds")
 time_steps = max(seroprevdata$time)
 upper_plot_time = 300
 sim_horizon = 530
+## Are we calling date0 from other places? We need to be consistent with the dates
 date0 = as.Date("2021-12-15")
 
 # construct spline basis for beta(t)
@@ -62,6 +51,8 @@ if (spline_beta) {
                                            , link_function = mp_log
   )
 }
+
+## Do we really need this? 
 
 # prior constructor
 get_prior = function(trans) function(rng) {
@@ -105,6 +96,8 @@ sims = (calibrator
 )
 
 
+## What is this? 
+
 # function to filter plotting time
 lim_dat = \(x) dplyr::filter(x, time <= upper_plot_time)
 
@@ -120,9 +113,7 @@ trajs <- (ggplot()
           + theme_bw()
 )
 
-png("../figures/fitted_trajs.png", width = 4500, height = 2500, res = 300, bg = "white", type = "cairo")
 print(trajs)
-dev.off()
 
 # plot full compartment trajectories
 print(calibrator
@@ -137,6 +128,8 @@ print(calibrator
       + theme_bw()
 )
 
+
+quit()
 
 # extract fitted coefficients
 model_estimates = mp_tmb_coef(calibrator, conf.int = TRUE) |> dplyr::select(-term, -col, -type) |> mutate(mat = abbreviate(mat, minlength = 15))

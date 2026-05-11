@@ -9,6 +9,8 @@ booster_offset <- 107
 dat <- csvRead()
 day0 <- as.Date("2021-12-17") - lubridate::days(offset0)
 
+## filtering just the NL section
+
 nl <- (dat
        |> filter(grepl("ewfoundland",prename)) # "ewfoundland"
        |> select(week_end,contains("numtotal"))
@@ -23,7 +25,8 @@ gg <- (ggplot(nl,aes(week_end,value))
        + facet_wrap(~type,scale="free")
 )
 
-#print(gg)
+
+## Grabbing 2 doses complete series
 
 V2_init <- (nl
             |> filter(type == "numtotal_fully")
@@ -32,6 +35,8 @@ V2_init <- (nl
 )
 
 print(V2_init)
+
+## Grabbing additional boosters
 
 nl_additional <- (nl
                   |> filter(type %in% c("numtotal_additional","numtotal_fully"))
