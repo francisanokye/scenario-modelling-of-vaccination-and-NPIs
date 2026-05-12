@@ -39,6 +39,9 @@ fitsero.Rout: fitsero.R seroprevdata.rds ../data/raw_citf_data.csv params.rda
 calibrate.Rout: calibrate.R timevar_spec.rds seroprevdata.rds fitsero.rds params.rda
 	$(pipeR)
 
+posterior.Rout: posterior.R calibrate.rds
+	$(pipeR)
+	
 ## This is francis' calibrate script.
 calibrate_old.Rout: calibrate_old.R timevar_spec.rds seroprevdata.rds fitsero.rds params.rda
 	$(pipeR)
