@@ -305,6 +305,3 @@ actual_diagnostic = (calibrator
 # png(fn, width = 7500, height = 5000, res = 300, bg = "white", type = "cairo")
 # actual_diagnostic
 # dev.off()
-
-
-# save fitted calibrator

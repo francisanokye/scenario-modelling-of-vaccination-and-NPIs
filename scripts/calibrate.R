@@ -52,7 +52,7 @@ if (spline_beta) {
   )
 }
 
-## Do we really need this? 
+## Do we really need this? Yes
 
 # prior constructor
 get_prior = function(trans) function(rng) {
@@ -89,48 +89,12 @@ calibrator = mp_tmb_calibrator(
 # optimize fit
 mp_optimize(calibrator)
 
-# simulate trajectories from posterior
-sims = (calibrator
-        |> mp_trajectory_sd(conf.int = TRUE, back_transform = TRUE)
-        |> dplyr::filter(time >= offset0)
-)
-
-
-## What is this? 
-
-# function to filter plotting time
-lim_dat = \(x) dplyr::filter(x, time <= upper_plot_time)
-
-# plot observed and fitted incidence
-trajs <- (ggplot()
-          + geom_point(aes(time, value), data = lim_dat(seroprevdata))
-          + geom_point(aes(time, value), data = lim_dat(fitserodata))
-          + geom_line(aes(time, value), linewidth = 1, data = lim_dat(sims),color="red")
-          + geom_ribbon(aes(x = time, ymin = conf.low, ymax = conf.high), alpha = 0.4, data = lim_dat(sims))
-          + facet_wrap(~matrix, scales = "free", ncol = 1)
-          + scale_y_continuous(name = "")
-          + scale_x_continuous(limits = c(offset0, upper_plot_time))
-          + theme_bw()
-)
-
-print(trajs)
-
-# plot full compartment trajectories
-print(calibrator
-      |> mp_optimized_spec("modified")
-      |> mp_simulator(time_steps, outputs = c(mp_state_vars(timevar_spec)), "cum_booster")
-      |> mp_trajectory()
-      |> lim_dat()
-      |> ggplot()
-      + aes(time, value)
-      + geom_line()
-      + facet_wrap(~matrix, scales = "free")
-      + theme_bw()
-)
-
 
 # extract fitted coefficients
-model_estimates = mp_tmb_coef(calibrator, conf.int = TRUE) |> dplyr::select(-term, -col, -type) |> mutate(mat = abbreviate(mat, minlength = 15))
+model_estimates = mp_tmb_coef(calibrator, conf.int = TRUE) |> 
+  dplyr::select(-term, -col, -type) |> 
+  mutate(mat = abbreviate(mat, minlength = 15))
+
 print(model_estimates, digits = 2)
 
 rdsSave(calibrator)

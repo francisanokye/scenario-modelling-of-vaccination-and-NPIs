@@ -584,8 +584,8 @@ p_inc_policy_facets <- final_results_df |>
 save_png(
   "../figures/incidence_all_policy.png",
   p_inc_policy_facets,
-  width = 7500,
-  height = 2500
+  width = 9500,
+  height = 4500
 )
 
 # ============================================================
@@ -634,28 +634,29 @@ inc_als4_only <- final_results_df |>
   ) +
   theme_clean() +
   theme(
-    axis.text.x = element_text(size = 14, hjust = 1, angle = 45),
-    axis.text.y = element_text(size = 18),
-    axis.title.y = element_text(size = 18, color = "black"),
+    axis.text.x = element_text(size = 30, hjust = 1, angle = 45),
+    axis.text.y = element_text(size = 30),
+    axis.title.y = element_text(size = 30, color = "black"),
     legend.position = "bottom",
     legend.justification = "center",
     legend.direction = "horizontal",
     legend.box = "horizontal",
     legend.box.just = "center",
     legend.title = element_blank(),
-    legend.text = element_text(size = 18),
+    legend.text = element_text(size = 30),
     legend.background = element_blank(),
     legend.spacing.x = unit(0.35, "cm"),
     legend.margin = margin(t = 8, r = 8, b = 8, l = 8),
-    plot.title = element_text(size = 20, hjust = 0.5),
-    panel.grid.major.x = element_blank()
+    plot.title = element_text(size = 40, hjust = 0.5),
+    panel.grid.major.x = element_blank(),
+    plot.background = element_blank()
   )
 
 save_png(
   "../figures/incidence_als4_policy.png",
   inc_als4_only,
-  width = 4500,
-  height = 1800
+  width = 7500,
+  height = 3500
 )
 
 # ============================================================
@@ -752,10 +753,10 @@ p_totals_split <- ggplot(
   ) +
   theme_clean() +
   theme(
-    axis.text.x = element_text(size = 15, hjust = 0.5, angle = 0),
-    axis.text.y = element_text(size = 20),
-    axis.title.y = element_text(size = 20, color = "black"),
-    strip.text = element_text(size = 20),
+    axis.text.x = element_text(size = 30, hjust = 0.5, angle = 0),
+    axis.text.y = element_text(size = 30),
+    axis.title.y = element_text(size = 30, color = "black"),
+    strip.text = element_text(size = 30),
     strip.background = element_rect(fill = "grey90"),
     legend.position = "bottom",
     legend.justification = "center",
@@ -763,20 +764,21 @@ p_totals_split <- ggplot(
     legend.box = "horizontal",
     legend.box.just = "center",
     legend.title = element_blank(),
-    legend.text = element_text(size = 20),
+    legend.text = element_text(size = 25),
     legend.background = element_blank(),
     legend.spacing.x = unit(0.35, "cm"),
     legend.margin = margin(t = 8, r = 8, b = 8, l = 8),
-    plot.title = element_text(size = 24, hjust = 0.5),
+    plot.title = element_text(size = 40, hjust = 0.5, face = "plain"),
     panel.grid.major.x = element_blank(),
-    panel.spacing = unit(2, "cm")
+    panel.spacing = unit(2, "cm"),
+    plot.background = element_blank()
   )
 
 save_png(
   "../figures/vax_stackbar_als.png",
   p_totals_split,
-  width = 6500,
-  height = 2500
+  width = 7500,
+  height = 3500
 )
 
 # ============================================================
@@ -850,7 +852,8 @@ p_peak_point <- ggplot(
     legend.spacing.x = unit(0.35, "cm"),
     legend.margin = margin(t = 8, r = 8, b = 8, l = 8),
     plot.title = element_text(size = 45, hjust = 0.5),
-    panel.grid.major.x = element_blank()
+    panel.grid.major.x = element_blank(),
+    plot.background = element_blank()
   ) +
   labs(tag = "A") +
   theme(
@@ -938,7 +941,8 @@ p_heat_relative_enhanced <- ggplot(
     legend.key.width = unit(1.8, "cm"),
     legend.spacing.x = unit(0.35, "cm"),
     legend.margin = margin(t = 8, r = 8, b = 8, l = 8),
-    panel.grid = element_blank()
+    panel.grid = element_blank(),
+    plot.background = element_blank()
   ) +
   labs(tag = "B") +
   theme(
@@ -1072,13 +1076,14 @@ p_actual_vs_all_vax <- ggplot(
     legend.margin = margin(t = 8, r = 8, b = 8, l = 8),
     plot.title = element_text(size = 40, hjust = 0.5, face = "plain"),
     panel.grid.major.x = element_blank(),
-    panel.spacing = unit(2, "cm")
+    panel.spacing = unit(2, "cm"),
+    plot.background = element_blank()
   )
 
 save_png(
   "../figures/actual_boosters_vs_all_vax_diffs.png",
   p_actual_vs_all_vax,
-  width = 9000,
+  width = 7500,
   height = 3500
 )
 
