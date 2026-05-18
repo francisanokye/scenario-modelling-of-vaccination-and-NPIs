@@ -152,6 +152,10 @@ generate_figure2.Rout: generate_figure2.R calibrate.rds base_beta.rds beta_als4.
 	build_multipliers.rds fitsero.rds seroprevdata.rds params.rda combine_vax_scenarios.rda  ../data/serop_avgcase_data.csv params.rda
 	$(pipeR)
 
+generate_figure3.Rout: generate_figure3.R calibrate.rds base_beta.rds beta_als4.rds policy_neutral.rds \
+	build_multipliers.rds fitsero.rds seroprevdata.rds params.rda combine_vax_scenarios.rda  ../data/serop_avgcase_data.csv params.rda
+	$(pipeR)
+	
 ### Simulate trajectories for ALS policies and vaccination scenarios
 simulate_als_vax_scenarios.Rout: simulate_als_vax_scenarios.R calibrate.rds base_beta.rds beta_als4.rds policy_neutral.rds \
 	build_multipliers.rds fitsero.rds seroprevdata.rds params.rda combine_vax_scenarios.rda  ../data/serop_avgcase_data.csv params.rda

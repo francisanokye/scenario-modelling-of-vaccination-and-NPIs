@@ -8,7 +8,6 @@ suppressPackageStartupMessages({
   library(scales)
   library(grid)
   library(lubridate)
-  library(forcats)
 })
 
 set.seed(2025)
@@ -19,62 +18,19 @@ options(scipen = 9999)
 loadEnvironments()
 
 init_date <- as.Date("2021-07-24")
+analysis_start <- as.Date("2021-12-15")
+analysis_end <- as.Date("2022-05-22")
+
 fig_dir <- "../figures"
 dir.create(fig_dir, recursive = TRUE, showWarnings = FALSE)
 
 sim_horizon <- 530
-new_V2_init <- 277707
 
 save_png <- function(path, plot_obj, width, height, res = 300, bg = "white") {
   png(path, width = width, height = height, res = res, bg = bg, type = "cairo")
   print(plot_obj)
   dev.off()
   invisible(path)
-}
-
-gamma_pmf_discrete <- function(mean, sd, max_lag = 40) {
-  shape <- (mean / sd)^2
-  scale <- (sd^2) / mean
-  tau <- 0:max_lag
-  
-  w <- pgamma(tau + 1, shape = shape, scale = scale) -
-    pgamma(tau, shape = shape, scale = scale)
-  
-  w / sum(w)
-}
-
-make_delay_state_defaults <- function(prefix, weights) {
-  n_lag <- length(weights) - 1
-  setNames(
-    as.list(rep(0, n_lag)),
-    sprintf("%s_%02d", prefix, seq_len(n_lag) - 1)
-  )
-}
-
-w_hosp  <- gamma_pmf_discrete(mean = 7,  sd = 4, max_lag = 40)
-w_death <- gamma_pmf_discrete(mean = 18, sd = 7, max_lag = 60)
-
-severity_state_defaults <- c(
-  make_delay_state_defaults("H_leq2dose", w_hosp),
-  make_delay_state_defaults("H_booster",  w_hosp),
-  make_delay_state_defaults("D_leq2dose", w_death),
-  make_delay_state_defaults("D_booster",  w_death)
-)
-
-add_severity_defaults <- function(spec) {
-  spec$default$p_hosp1 <- p_hosp1
-  spec$default$p_hosp2 <- p_hosp2
-  spec$default$p_hosp3 <- p_hosp3
-  
-  spec$default$p_death1 <- p_death1
-  spec$default$p_death2 <- p_death2
-  spec$default$p_death3 <- p_death3
-  
-  for (nm in names(severity_state_defaults)) {
-    spec$default[[nm]] <- severity_state_defaults[[nm]]
-  }
-  
-  spec
 }
 
 calibrator <- rdsRead("calibrate")
@@ -99,7 +55,10 @@ generate_scenario_boosters <- function(scenario_name) {
   
   scenario_daily <- scenario_daily |>
     group_by(changepoints) |>
-    summarise(vac_values = sum(vac_values, na.rm = TRUE), .groups = "drop") |>
+    summarise(
+      vac_values = sum(vac_values, na.rm = TRUE),
+      .groups = "drop"
+    ) |>
     arrange(changepoints)
   
   if (!any(scenario_daily$changepoints == 0)) {
@@ -118,12 +77,8 @@ generate_scenario_boosters <- function(scenario_name) {
 
 set_booster_vax <- function(booster_days, booster_vals) {
   spec <- mp_optimized_spec(calibrator, "modified")
-  
   spec$integers$booster_vac_changepoints <- as.integer(booster_days)
   spec$default$booster_vac_values <- as.numeric(booster_vals)
-  
-  spec <- add_severity_defaults(spec)
-  
   spec
 }
 
@@ -161,13 +116,10 @@ policy_list <- list(
   "ALS-4 Only" = padded_beta_als4
 )
 
-policy_order <- c("No-ALS Only", "Actual ALS", "ALS-4 Only")
-
-vax_order <- c(
-  "Slower rate",
-  "Actual boosters",
-  "Faster rate",
-  "Early boosters (-35 Days)"
+policy_order <- c(
+  "No-ALS Only",
+  "Actual ALS",
+  "ALS-4 Only"
 )
 
 vax_x_labs <- c(
@@ -175,6 +127,13 @@ vax_x_labs <- c(
   "Actual boosters" = "Actual\nboosters",
   "Faster rate" = "Faster\nboosters",
   "Early boosters (-35 Days)" = "Earlier\nboosters"
+)
+
+severity_fill_cols <- c(
+  "Slower rate" = "#CC79A7",
+  "Actual boosters" = "#4D4D4D",
+  "Faster rate" = "#0072B2",
+  "Early boosters (-35 Days)" = "#D55E00"
 )
 
 sim_grid <- expand.grid(
@@ -186,31 +145,24 @@ sim_grid <- expand.grid(
 all_sim_results <- vector("list", nrow(sim_grid))
 
 for (i in seq_len(nrow(sim_grid))) {
-  policy_name <- sim_grid$policy_name[i]
-  vax_name <- sim_grid$vax_name[i]
-  
   spec_i <- update_vax_spec_beta(
-    vax_scenario_specs[[vax_name]],
-    policy_list[[policy_name]]
+    vax_scenario_specs[[sim_grid$vax_name[i]]],
+    policy_list[[sim_grid$policy_name[i]]]
   )
   
   all_sim_results[[i]] <- spec_i |>
     mp_simulator(
       sim_horizon,
       outputs = c(
-        "hosp_leq2dose",
-        "hosp_booster",
         "hosp_total",
-        "death_leq2dose",
-        "death_booster",
         "death_total"
       )
     ) |>
     mp_trajectory() |>
     mutate(
       date = init_date + time,
-      policy = policy_name,
-      vax_scenario = vax_name
+      policy = sim_grid$policy_name[i],
+      vax_scenario = sim_grid$vax_name[i]
     )
 }
 
@@ -224,28 +176,36 @@ severity_df <- bind_rows(all_sim_results) |>
       "Actual Boosters" = "Actual boosters",
       "Faster Rate" = "Faster rate",
       "Early Boosters (-35 Days)" = "Early boosters (-35 Days)"
-    ),
-    vax_scenario = factor(vax_scenario, levels = vax_order)
+    )
   ) |>
   pivot_wider(
     names_from = matrix,
     values_from = value,
     values_fill = 0
   ) |>
+  filter(
+    date >= analysis_start,
+    date <= analysis_end
+  ) |>
   arrange(policy, vax_scenario, date) |>
   group_by(policy, vax_scenario) |>
   mutate(
-    cum_hosp_leq2dose = cumsum(hosp_leq2dose),
-    cum_hosp_booster = cumsum(hosp_booster),
     cum_hosp_total = cumsum(hosp_total),
-    
-    cum_death_leq2dose = cumsum(death_leq2dose),
-    cum_death_booster = cumsum(death_booster),
     cum_death_total = cumsum(death_total)
   ) |>
   ungroup()
 
-figure2_df <- bind_rows(
+diagnostic_summary <- severity_df |>
+  group_by(policy, vax_scenario) |>
+  summarise(
+    hospitalizations = max(cum_hosp_total, na.rm = TRUE),
+    deaths = max(cum_death_total, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+print(diagnostic_summary)
+
+figure3_df <- bind_rows(
   severity_df |>
     group_by(policy, vax_scenario) |>
     summarise(
@@ -269,40 +229,100 @@ figure2_df <- bind_rows(
       "Actual ALS" = "Actual NPIs",
       "ALS-4 Only" = "Strict NPIs"
     ),
-    policy_label = factor(policy_label, levels = c("No NPIs", "Actual NPIs", "Strict NPIs")),
-    outcome = factor(outcome, levels = c("Hospitalizations", "Deaths")),
+    policy_label = factor(
+      policy_label,
+      levels = c("No NPIs", "Actual NPIs", "Strict NPIs")
+    ),
+    outcome = factor(
+      outcome,
+      levels = c("Hospitalizations", "Deaths")
+    )
+  )
+
+# Automatically order bars from tallest to shortest
+# using total hospitalizations under No NPIs as the reference.
+vax_order <- figure3_df |>
+  filter(
+    outcome == "Hospitalizations",
+    policy_label == "No NPIs"
+  ) |>
+  arrange(desc(severe_outcome)) |>
+  pull(vax_scenario) |>
+  unique()
+
+figure3_df <- figure3_df |>
+  mutate(
     vax_scenario = factor(vax_scenario, levels = vax_order)
   )
 
-figure2 <- ggplot(
-  figure2_df,
-  aes(x = vax_scenario, y = severe_outcome)
+figure3 <- ggplot(
+  figure3_df,
+  aes(
+    x = vax_scenario,
+    y = severe_outcome,
+    fill = vax_scenario
+  )
 ) +
-  geom_col(fill = "grey65", colour = "black", width = 0.72, linewidth = 0.25) +
-  facet_grid(outcome ~ policy_label, scales = "free_y") +
-  scale_x_discrete(labels = vax_x_labs, drop = FALSE) +
-  scale_y_continuous(labels = comma, expand = expansion(mult = c(0, 0.08))) +
+  geom_col(
+    colour = "black",
+    width = 0.72,
+    linewidth = 0.25
+  ) +
+  facet_grid(
+    outcome ~ policy_label,
+    scales = "free_y"
+  ) +
+  scale_fill_manual(
+    values = severity_fill_cols,
+    breaks = vax_order,
+    labels = c(
+      "Slower rate" = "Slower boosters",
+      "Actual boosters" = "Actual boosters",
+      "Faster rate" = "Faster boosters",
+      "Early boosters (-35 Days)" = "Earlier boosters"
+    )[vax_order]
+  ) +
+  scale_x_discrete(
+    labels = vax_x_labs,
+    drop = FALSE
+  ) +
+  scale_y_continuous(
+    labels = comma,
+    expand = expansion(mult = c(0, 0.08))
+  ) +
   labs(
     title = "Severe outcomes across NPI and booster scenarios",
     x = NULL,
-    y = "Cumulative severe outcomes"
+    y = "Severe infections",
+    fill = NULL
   ) +
   theme_clean() +
   theme(
-    axis.text.x = element_text(size = 24, hjust = 0.5, angle = 0),
-    axis.text.y = element_text(size = 24),
-    axis.title.y = element_text(size = 28, colour = "black"),
-    strip.text = element_text(size = 26),
-    strip.background = element_rect(fill = "grey90"),
-    plot.title = element_text(size = 36, hjust = 0.5, face = "plain"),
+    axis.text.x = element_text(size = 30, hjust = 0.5, angle = 0),
+    axis.text.y = element_text(size = 30),
+    axis.title.y = element_text(size = 30, colour = "black"),
+    strip.text = element_text(size = 30, face = "plain"),
+    strip.background = element_rect(fill = "grey90", colour = NA),
+    
+    legend.position = "bottom",
+    legend.justification = "center",
+    legend.direction = "horizontal",
+    legend.box = "horizontal",
+    legend.title = element_blank(),
+    legend.text = element_text(size = 28),
+    legend.background = element_blank(),
+    legend.spacing.x = unit(0.45, "cm"),
+    
+    plot.title = element_text(size = 40, hjust = 0.5, face = "plain"),
     panel.grid.major.x = element_blank(),
-    panel.spacing = unit(1.5, "cm"),
+    panel.spacing = unit(2, "cm"),
+    plot.tag = element_text(size = 35, face = "bold"),
     plot.background = element_blank()
   )
 
 save_png(
-  file.path(fig_dir, "figure2_severe_outcomes.png"),
-  figure2,
-  width = 9000,
-  height = 5500
+  file.path(fig_dir, "figure2.png"),
+  figure3,
+  width = 8500,
+  height = 4200
 )
