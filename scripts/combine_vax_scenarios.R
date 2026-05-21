@@ -102,7 +102,7 @@ theme_pub <- theme_clean() +
     axis.text.x = element_text(size = 25, hjust = 1, angle = 45),
     axis.text.y = element_text(size = 25),
     axis.title.y = element_text(size = 30, color = "black"),
-    legend.position = c(0.8, 0.35),
+    legend.position = c(0.85, 0.20),
     legend.justification = "center",
     legend.direction = "vertical",
     legend.box = "vertical",

@@ -9,44 +9,60 @@ loadEnvironments()
 
 scenario_name <- "Faster Rate"
 
+# ------------------------------------------------------------
+# 1. Create faster rollout curve
+# ------------------------------------------------------------
+
 scenario_daily_df_faster <- make_rollout_scenario(
   daily_base,
   speed = 1.50,
   shift_days = 0,
   label = scenario_name
-)
+) |>
+  filter(date >= init_date, date <= analysis_end) |>
+  arrange(date)
+
+# ------------------------------------------------------------
+# 2. Weekly summary for plotting only
+# ------------------------------------------------------------
 
 scenario_weekly_df_faster <- scenario_daily_df_faster |>
+  mutate(
+    week_end = ceiling_date(date, unit = "week", week_start = 7) - days(1)
+  ) |>
   group_by(scenario, week_end) |>
   summarise(
-    weekly_rate = max(weekly_rate, na.rm = TRUE),
+    weekly_rate = sum(daily_rate, na.rm = TRUE),
     cum_prop    = max(cum_prop, na.rm = TRUE),
     cum_val     = max(cum_val, na.rm = TRUE),
     .groups = "drop"
   ) |>
-  mutate(is_star = FALSE)
+  mutate(is_star = FALSE) |>
+  arrange(week_end)
 
-scenario_booster_inputs_df_faster <- scenario_weekly_df_faster |>
-  arrange(week_end) |>
-  mutate(
-    daydiff = as.numeric(week_end - lag(week_end, default = week_end[1] - 7)),
-    interval_start = week_end - (daydiff - 1)
-  ) |>
-  tidyr::uncount(weights = daydiff, .remove = FALSE) |>
-  group_by(week_end) |>
-  mutate(
-    date = seq(min(interval_start), max(week_end), by = "day"),
-    booster_vac_value = weekly_rate / first(daydiff)
-  ) |>
-  ungroup() |>
-  transmute(
-    scenario = scenario_name,
-    date,
-    day = as.integer(date - init_date),
-    booster_vac_value = as.numeric(booster_vac_value)
-  ) |>
-  arrange(day)
+# ------------------------------------------------------------
+# 3. Daily model input directly from daily_rate
+# ------------------------------------------------------------
 
-print(scenario_booster_inputs_df_faster, n = Inf)
+scenario_booster_inputs_df_faster <- make_booster_input(
+  scenario_daily_df_faster,
+  scenario_name
+)
 
-saveVars(scenario_daily_df_faster, scenario_weekly_df_faster, scenario_booster_inputs_df_faster)
+# ------------------------------------------------------------
+# 4. Validation
+# ------------------------------------------------------------
+
+print(
+  validate_rollout(
+    scenario_daily_df_faster,
+    scenario_booster_inputs_df_faster,
+    scenario_name
+  )
+)
+
+saveVars(
+  scenario_daily_df_faster,
+  scenario_weekly_df_faster,
+  scenario_booster_inputs_df_faster
+)
