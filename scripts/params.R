@@ -1,96 +1,212 @@
+
 library(shellpipes)
+
 set.seed(2024)
 
 loadEnvironments()
 
-gamma_pmf_discrete <- function(mean, sd, max_lag = 40) {
-  shape <- (mean / sd)^2
-  scale <- (sd^2) / mean
-  tau <- 0:max_lag
-  
-  w <- pgamma(tau + 1, shape = shape, scale = scale) -
-    pgamma(tau, shape = shape, scale = scale)
-  
-  w / sum(w)
-}
-
-make_delay_state_defaults <- function(prefix, weights) {
-  n_lag <- length(weights) - 1
-  
-  setNames(
-    rep(0, n_lag),
-    sprintf("%s_%02d", prefix, seq_len(n_lag) - 1)
-  )
-}
-
 mu_val <- 0.676
+# ------------------------------------------------------------
+# Severe outcome risks per infection
+# ------------------------------------------------------------
+## Canadian/Ontario Omicron studies show Omicron had lower hospitalization/death risk than Delta,
+# while vaccination—especially a third dose—strongly preserved protection against severe outcomes.
+# Ontario data estimated third-dose VE against Omicron severe outcomes around 95%, and Public Health Ontario
+# estimated thousands of hospitalizations were prevented by boosters during Omicron.
+# https://pmc.ncbi.nlm.nih.gov/articles/PMC8855311/
 
-# Risks per infection
-p_hosp1_inf <- 0.030
-p_hosp2_inf <- 0.015
-p_hosp3_inf <- 0.006
+# Because Omicron was more transmissible but less severe than Delta, the average baseline probability of hospitalization 
+# for an infected individual was roughly 1.0% to 1.5%, and the baseline probability of death (IFR) was roughly 0.1% to 0.3% across 
+# the general population. We obtain how many hospitalizations will occur in a specific vaccination group by multiplying the number of infections 
+#  by \(0.045\) (or \(4.5\%\) risk per infection for unvaccinated, fully Vaccinated: by \(0.012\) (or \(1.2\%\) risk per infection and 
+# booster vaccinated by \(0.004\) (or \(0.4\%\) risk per infection. For the number of deaths, unvaccinated: multiply infections 
+# by \(0.0090\) (or \(0.90\%\) risk per infection), fully vaccinated: multiply infections by \(0.0015\) (or \(0.15\%\) risk per infection) and 
+# booster vaccinated: multiply infections by \(0.0003\) (or \(0.03\%\) risk per infection.
 
-p_death1_inf <- 0.0040
-p_death2_inf <- 0.0015
-p_death3_inf <- 0.0005
+# p_hosp1 <- 0.05
+# p_hosp2 <- 0.014
+# p_hosp3 <- 0.007
+# 
+# p_death1 <- 0.002
+# p_death2 <- 0.001
+# p_death3 <- 0.0005
 
-# Convert to risks conditional on symptomatic infection
-p_hosp1_symp <- p_hosp1_inf / mu_val
-p_hosp2_symp <- p_hosp2_inf / mu_val
-p_hosp3_symp <- p_hosp3_inf / mu_val
+p_hosp1 <- 0.05
+p_hosp2 <- 0.015
+p_hosp3 <- 0.007
 
-p_death1_symp <- p_death1_inf / mu_val
-p_death2_symp <- p_death2_inf / mu_val
-p_death3_symp <- p_death3_inf / mu_val
-
-w_hosp <- gamma_pmf_discrete(mean = 7, sd = 4, max_lag = 40)
-w_death <- gamma_pmf_discrete(mean = 18, sd = 7, max_lag = 40)
-
-severity_delay_states <- c(
-  make_delay_state_defaults("H_leq2dose", w_hosp),
-  make_delay_state_defaults("H_booster",  w_hosp),
-  make_delay_state_defaults("D_leq2dose", w_death),
-  make_delay_state_defaults("D_booster",  w_death)
-)
+p_death1 <- 0.005
+p_death2 <- 0.001
+p_death3 <- 0.0007
+# ------------------------------------------------------------
+# Model parameters
+# ------------------------------------------------------------
 
 params <- c(
+
+  # transmission
   beta = 0.1,
-  kappa1 = 1,
+  zeta = 0.75,
+
+  # vaccine-modified susceptibility
+  kappa1 = 1.00,
   kappa2 = 0.91,
-  kappa3 = 0.3,
+  kappa3 = 0.30,
+
+  # progression
   sigma = 1 / 3,
   gamma_a = 1 / 10,
   gamma_i = 1 / 7,
   mu = mu_val,
-  zeta = 0.75,
+
+  # vaccination
   vac2 = 0.09,
   vac3 = 0.0189,
   vac2_const = 0.09,
   vac3_const = 0.0189,
+
+  # population
   N = 510550,
   V2_init = V2_init,
-  
+
+  # ----------------------------------------------------------
+  # vaccination counters
+  # ----------------------------------------------------------
+
   double_vac = 0,
   booster_shot = 0,
-  
+
+  cum_double_vac = 0,
+  cum_booster = 0,
+
+  # ----------------------------------------------------------
+  # infection incidence
+  # ----------------------------------------------------------
+
+  incS = 0,
+  incv2 = 0,
+  incv3 = 0,
+
+  inc = 0,
+  total_inc = 0,
+
+  inc_leq2dose = 0,
+  inc_booster = 0,
+
+  # ----------------------------------------------------------
+  # symptomatic incidence
+  # ----------------------------------------------------------
+
+  inc_symp1 = 0,
+  inc_symp2 = 0,
+  inc_symp3 = 0,
+
+  inc_symp_leq2dose = 0,
+  inc_symp_booster = 0,
+  inc_symp_total = 0,
+
+  # ----------------------------------------------------------
+  # asymptomatic incidence
+  # ----------------------------------------------------------
+
+  inc_asymp1 = 0,
+  inc_asymp2 = 0,
+  inc_asymp3 = 0,
+
+  inc_asymp_leq2dose = 0,
+  inc_asymp_booster = 0,
+  inc_asymp_total = 0,
+
+  # ----------------------------------------------------------
+  # cumulative infections
+  # ----------------------------------------------------------
+
   cum_inc_leq2dose = 0,
   cum_inc_booster = 0,
   cum_inc_total = 0,
-  
-  p_hosp1 = p_hosp1_symp,
-  p_hosp2 = p_hosp2_symp,
-  p_hosp3 = p_hosp3_symp,
-  
-  p_death1 = p_death1_symp,
-  p_death2 = p_death2_symp,
-  p_death3 = p_death3_symp,
-  
-  severity_delay_states
+
+  cum_symp_leq2dose = 0,
+  cum_symp_booster = 0,
+  cum_symp_total = 0,
+
+  # ----------------------------------------------------------
+  # hospitalization incidence
+  # ----------------------------------------------------------
+
+  hosp_1dose = 0,
+  hosp_2dose = 0,
+  hosp_3dose = 0,
+
+  hosp_leq2dose = 0,
+  hosp_booster = 0,
+  hosp_total = 0,
+
+  # ----------------------------------------------------------
+  # death incidence
+  # ----------------------------------------------------------
+
+  death_1dose = 0,
+  death_2dose = 0,
+  death_3dose = 0,
+
+  death_leq2dose = 0,
+  death_booster = 0,
+  death_total = 0,
+
+  # ----------------------------------------------------------
+  # cumulative hospitalizations
+  # ----------------------------------------------------------
+
+  cum_hosp_1dose = 0,
+  cum_hosp_2dose = 0,
+  cum_hosp_3dose = 0,
+
+  cum_hosp_leq2dose = 0,
+  cum_hosp_booster = 0,
+  cum_hosp_total = 0,
+
+  # ----------------------------------------------------------
+  # cumulative deaths
+  # ----------------------------------------------------------
+
+  cum_death_1dose = 0,
+  cum_death_2dose = 0,
+  cum_death_3dose = 0,
+
+  cum_death_leq2dose = 0,
+  cum_death_booster = 0,
+  cum_death_total = 0,
+
+  # ----------------------------------------------------------
+  # serology / reporting
+  # ----------------------------------------------------------
+
+  sero_inc_total = 0,
+  serop_total = 0,
+  newR_total = 0,
+  beta_thing = 0,
+
+  # ----------------------------------------------------------
+  # severe outcome risks
+  # risks are applied per infection
+  # ----------------------------------------------------------
+
+  p_hosp1 = p_hosp1,
+  p_hosp2 = p_hosp2,
+  p_hosp3 = p_hosp3,
+
+  p_death1 = p_death1,
+  p_death2 = p_death2,
+  p_death3 = p_death3
 )
+
+# ------------------------------------------------------------
+# Prior ranges
+# ------------------------------------------------------------
 
 prior_range <- list(
   kappa2 = c(0.85, 0.95),
-  kappa3 = c(0.2, 0.4),
+  kappa3 = c(0.20, 0.40),
   gamma_a = c(1 / 11, 1 / 8),
   gamma_i = c(1 / 8, 1 / 6),
   sigma = c(1 / 4, 1 / 2),
@@ -98,3 +214,4 @@ prior_range <- list(
 )
 
 saveEnvironment()
+

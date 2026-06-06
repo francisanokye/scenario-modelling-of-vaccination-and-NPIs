@@ -1,3 +1,4 @@
+
 suppressPackageStartupMessages({
   library(dplyr)
   library(tidyr)
@@ -16,7 +17,7 @@ target_final <- daily_base |>
 
 scenario_daily_df_slower <- make_rollout_scenario(
   daily_base,
-  speed = 1 / 1.5,
+  speed = 0.5,
   shift_days = 0,
   label = scenario_name
 ) |>
@@ -42,7 +43,7 @@ scenario_daily_df_slower <- scenario_daily_df_slower |>
     daily_rate = c(cum_val[1], diff(cum_val)),
     daily_rate = pmax(daily_rate, 0),
     cum_val = cumsum(daily_rate),
-    cum_prop = clip01(cum_val / eligible_pop),
+    cum_prop = clip01(cum_val / NL_POP),
     week_end = ceiling_date(date, unit = "week", week_start = 7) - days(1),
     scenario = scenario_name
   )
@@ -76,3 +77,9 @@ saveVars(
   scenario_weekly_df_slower,
   scenario_booster_inputs_df_slower
 )
+
+
+
+
+
+

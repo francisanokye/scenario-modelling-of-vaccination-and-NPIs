@@ -1,21 +1,21 @@
+
+
 library(macpan2)
 library(ggplot2)
 library(dplyr)
 library(shellpipes)
 
-## We want to create a new specs without splines and simulate
-## the trajectories by inputing our own time series of beta_t
+loadEnvironments()
 
-stepkeep <- 149
+stepkeep <- 150
 
-dat = rdsRead("build_multipliers")
+dat = df_est 
 cal = rdsRead("calibrate")
 spec = mp_optimized_spec(cal, spec_structure = "modified")
 time_steps = cal$simulator$tmb_model$time_steps$time_steps
 
-obs_newR = data.frame(
-  time = cal$cal_spec$integers$obs_times_log_newR
-  , value = cal$cal_spec$default$obs_log_newR
+obs_newR = data.frame(time = cal$cal_spec$integers$obs_times_log_newR, 
+                      value = cal$cal_spec$default$obs_log_newR
 )
 
 calibrated_beta = (spec
@@ -23,21 +23,11 @@ calibrated_beta = (spec
                    |> mp_trajectory()
 )
 
-if (interactive()) {
-  (calibrated_beta
-   |> ggplot()
-   + aes(time, value)
-   + geom_line()
-  )
-}
+# substitute the ALS-4 Only values for 28 days
+calibrated_beta$value[stepkeep:length(calibrated_beta$value)] <- dat$beta_ALS4_28days_only
 
-new_beta = c(
-  calibrated_beta$value[1:stepkeep]
-  , dat$beta_ALS4_28days_only
-  , calibrated_beta$value[(1+stepkeep+nrow(dat)):time_steps]
-)
+new_beta <- calibrated_beta$value
+
 stopifnot(length(new_beta) == time_steps)
-
-print(new_beta)
 
 rdsSave(new_beta)

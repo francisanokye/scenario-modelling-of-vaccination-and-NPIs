@@ -13,7 +13,7 @@ try(loadEnvironments(), silent = TRUE)
 date0    <- as.Date("2021-12-15")
 date_end <- as.Date("2022-05-22")
 offset0  <- 150
-upper_plot_time <- 300
+upper_plot_time <- 308
 start_date <- date0
 basis_cols <- 5
 tau_days <- 2.0
@@ -107,7 +107,6 @@ stopifnot(!any(is.na(df_est$beta0_hat)))
 
 # counterfactual betas (schools as observed; ALS constant throughout)
 k_ALS <- c(
-  ALS2  = unname(m_als["ALS2"]),
   ALS4  = unname(m_als["ALS4"]),
   NoALS = unname(m_als["NoALS"])
 )
@@ -123,12 +122,10 @@ df_est <- df_est %>%
     s_trans = plogis(as.numeric(date - noals_start) / tau_days),
     
     # Smoothly transition from ALS multiplier to 1.0
-    m_scen_ALS2  = (k_ALS["ALS2"] * (1 - s_trans) + 1.0 * s_trans) * m_school_hat,
     m_scen_ALS4  = (k_ALS["ALS4"] * (1 - s_trans) + 1.0 * s_trans) * m_school_hat,
     m_scen_NoALS = k_ALS["NoALS"] * m_school_hat,
     
     # Now calculate your betas
-    beta_cf_ALS2  = beta0_hat * m_scen_ALS2,
     beta_cf_ALS4  = beta0_hat * m_scen_ALS4,
     beta_cf_NoALS = beta0_hat * m_scen_NoALS
   )
@@ -151,7 +148,7 @@ df_est_full <- full_df %>%
   tidyr::fill(beta0_hat, m_school_hat, .direction = "downup")
 
 als4_start_only <- as.Date("2021-12-15")
-als4_only_days  <- c(14L, 28L, 40L, 60L, 90L, 120L, 150L, 180L)
+als4_only_days  <- c(0, 7L, 14L, 28L, 40L, 60L, 90L, 120L, 150L, 180L)
 
 make_ALS4_days_only_then_NoALS <- function(date, als4_days,
                                            als4_start = as.Date("2021-12-15"),
@@ -241,8 +238,11 @@ school_change_dates <- df_est |>
 
 # ------------------ plot: ALS-4 days-only counterfactuals -----------------
 cols_new <- c(
-  "Estimated (Implemented)" = "red",
-  "No ALS"                  = "blue",
+  "Estimated (Implemented)" = "black",
+  "No ALS"                  = "red",
+  "ALS-4 Only"              = "blue",
+  "ALS-4 0 days only"      = "#1b9e77",
+  "ALS-4 7 days only"      = "#1b9e77",
   "ALS-4 14 days only"      = "#1b9e77",
   "ALS-4 28 days only"      = "#d95f02",
   "ALS-4 40 days only"      = "#7570b3",
@@ -250,7 +250,7 @@ cols_new <- c(
   "ALS-4 90 days only"      = "#66a61e",
   "ALS-4 120 days only"      = "brown",
   "ALS-4 150 days only"      = "magenta",
-  "ALS-4 180 days only"      = "black"
+  "ALS-4 180 days only"      = "gray60"
 )
 
 p_beta_ALS4_days_only <- ggplot(df_est, aes(date)) +
@@ -258,6 +258,10 @@ p_beta_ALS4_days_only <- ggplot(df_est, aes(date)) +
                   fill = "Estimated (Implemented)"), alpha = 0.18) +
   geom_ribbon(aes(ymin = beta0_hat_l, ymax = beta0_hat_u,
                   fill = "No ALS"), alpha = 0.18) +
+  geom_ribbon(aes(ymin = beta_ALS4_14days_only_l, ymax = beta_ALS4_0days_only_u,
+                  fill = "ALS-4 0 days only"), alpha = 0.10) +
+  geom_ribbon(aes(ymin = beta_ALS4_14days_only_l, ymax = beta_ALS4_7days_only_u,
+                  fill = "ALS-4 7 days only"), alpha = 0.10) +
   geom_ribbon(aes(ymin = beta_ALS4_14days_only_l, ymax = beta_ALS4_14days_only_u,
                   fill = "ALS-4 14 days only"), alpha = 0.10) +
   geom_ribbon(aes(ymin = beta_ALS4_28days_only_l, ymax = beta_ALS4_28days_only_u,
@@ -268,14 +272,16 @@ p_beta_ALS4_days_only <- ggplot(df_est, aes(date)) +
                   fill = "ALS-4 60 days only"), alpha = 0.10) +
   geom_ribbon(aes(ymin = beta_ALS4_90days_only_l, ymax = beta_ALS4_90days_only_u,
                   fill = "ALS-4 90 days only"), alpha = 0.10) +
-  geom_ribbon(aes(ymin = beta_ALS4_90days_only_l, ymax = beta_ALS4_90days_only_u,
+  geom_ribbon(aes(ymin = beta_ALS4_120days_only_l, ymax = beta_ALS4_120days_only_u,
                   fill = "ALS-4 120 days only"), alpha = 0.10) +
-  geom_ribbon(aes(ymin = beta_ALS4_90days_only_l, ymax = beta_ALS4_90days_only_u,
+  geom_ribbon(aes(ymin = beta_ALS4_150days_only_l, ymax = beta_ALS4_150days_only_u,
                   fill = "ALS-4 150 days only"), alpha = 0.10) +
-  geom_ribbon(aes(ymin = beta_ALS4_90days_only_l, ymax = beta_ALS4_90days_only_u,
+  geom_ribbon(aes(ymin = beta_ALS4_180days_only_l, ymax = beta_ALS4_180days_only_u,
                   fill = "ALS-4 180 days only"), alpha = 0.10) +
   geom_line(aes(y = beta_hat, color = "Estimated (Implemented)"), linewidth = 2.0) +
   geom_line(aes(y = beta0_hat, color = "No ALS"), linewidth = 2.0) +
+  geom_line(aes(y = beta_ALS4_14days_only, color = "ALS-4 0 days only"), linewidth = 1.5) +
+  geom_line(aes(y = beta_ALS4_14days_only, color = "ALS-4 7 days only"), linewidth = 1.5) +
   geom_line(aes(y = beta_ALS4_14days_only, color = "ALS-4 14 days only"), linewidth = 1.5) +
   geom_line(aes(y = beta_ALS4_28days_only, color = "ALS-4 28 days only"), linewidth = 1.5) +
   geom_line(aes(y = beta_ALS4_40days_only, color = "ALS-4 40 days only"), linewidth = 1.5) +
@@ -321,9 +327,57 @@ p_beta_ALS4_days_only <- ggplot(df_est, aes(date)) +
     y = "Transmission rate"
   )
 
-# png("../figures/p_beta_ALS4_days_only.png",
-#     width = 4200, height = 2400, res = 300, bg = "white", type = "cairo")
-# print(p_beta_ALS4_days_only)
+p_beta_only <- ggplot(df_est, aes(date)) +
+  geom_line(aes(y = beta_hat, color = "Estimated (Implemented)"), linewidth = 2.0) +
+  geom_line(aes(y = beta0_hat, color = "No ALS"), linewidth = 2.0) +
+  geom_line(aes(y = beta_cf_ALS4, color = "ALS-4 Only"), linewidth = 2.0) +
+  scale_color_manual(values = cols_new, name = NULL) +
+  scale_fill_manual(values = cols_new, guide = "none") +
+  scale_x_date(date_breaks = "2 weeks",date_labels = "%b %d",expand = c(0, 0)) +
+  geom_vline(data = als_change_dates,
+             aes(xintercept = date),
+             linetype = "dashed",
+             linewidth = 1.0) +
+  geom_vline(data = school_change_dates,
+             aes(xintercept = date),
+             linetype = "dotdash",
+             linewidth = 1.0,
+             color = "brown") +
+  theme_clean() +
+  theme(
+    axis.text.x = element_text(size = 18, angle = 0, hjust = 0.5),
+    axis.text.y = element_text(size = 18),
+    axis.title.x = element_text(size = 18),
+    axis.title.y = element_text(size = 18),
+    plot.title = element_text(size = 22, hjust = 0.5, face = "plain"),
+    legend.position = "top",
+    legend.text = element_text(size = 16),
+    legend.background = element_blank(),
+    strip.background = element_blank(),
+    plot.background = element_blank()
+  ) +
+  guides(color = guide_legend(nrow = 2, byrow = TRUE)) +
+  labs(
+    title = "Estimated transmission rate and ALS-4 duration-only counterfactuals",
+    x = NULL,
+    y = "Transmission rate"
+  )
+
+# png("../figures/p_beta_only.png",width = 4200, height = 2400, res = 300, bg = "white", type = "cairo")
+# print(p_beta_only)
 # dev.off()
 
-rdsSave(df_est)
+selected_columns <- c("date","beta_hat", "beta0_hat", "beta_cf_ALS4",  
+                      "beta_ALS4_0days_only","beta_ALS4_7days_only",
+                      "beta_ALS4_14days_only","beta_ALS4_28days_only",
+                      "beta_ALS4_40days_only","beta_ALS4_60days_only", 
+                      "beta_ALS4_90days_only", "beta_ALS4_120days_only",
+                      "beta_ALS4_150days_only", "beta_ALS4_180days_only")
+
+df_est <- df_est |> 
+  select(selected_columns)
+
+print(df_est)
+
+# rdsSave(df_est)
+saveVars(df_est)

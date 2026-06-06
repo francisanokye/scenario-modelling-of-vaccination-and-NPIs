@@ -21,7 +21,7 @@ scenario_weekly_df_national <- can_weekly_nl_inputs |>
     weekly_rate  = pmax(weekly_rate, 0),
     cum_val      = cumsum(weekly_rate),
     cum_val      = pmin(cummax(cum_val), eligible_pop),
-    cum_prop     = clip01(cum_val / eligible_pop),
+    cum_prop     = clip01(cum_val / NL_POP),
     is_star      = FALSE,
     scenario     = scenario_name
   ) |>

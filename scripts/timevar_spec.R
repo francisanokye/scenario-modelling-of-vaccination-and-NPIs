@@ -12,7 +12,7 @@ init_date <- as.Date("2021-07-24")
 # ------------------------------------------------------------
 # Vaccination inputs
 # ------------------------------------------------------------
-double_daily_vac <- nl_additional |>
+double_daily_vac <- nl_vax |>
   dplyr::filter(type == "numtotal_fully") |>
   dplyr::mutate(days = as.integer(days)) |>
   dplyr::arrange(days)

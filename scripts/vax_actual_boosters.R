@@ -1,3 +1,4 @@
+
 suppressPackageStartupMessages({
   library(dplyr)
   library(tidyr)
@@ -10,49 +11,34 @@ loadEnvironments()
 scenario_name <- "Actual Boosters"
 target_date   <- as.Date("2022-01-11")
 
-# ------------------------------------------------------------
-# 1. Create actual daily rollout curve
-# ------------------------------------------------------------
-
 scenario_daily_df_actual <- make_rollout_scenario(
   daily_base,
   speed = 1.00,
   shift_days = 0,
-  label = scenario_name
+  label = scenario_name,
+  scenario_start = booster_start
 ) |>
-  filter(date >= init_date, date <= analysis_end) |>
+  filter(date >= booster_start, date <= analysis_end) |>
   arrange(date)
-
-# ------------------------------------------------------------
-# 2. Weekly observed/imputed curve for plotting only
-# ------------------------------------------------------------
 
 scenario_weekly_df_actual <- nl_actual |>
   transmute(
-    scenario    = scenario_name,
+    scenario = scenario_name,
     week_end,
     weekly_rate = weekly_inc_star,
     cum_prop,
-    cum_val     = corrected_value,
-    is_target   = week_end == target_date,
-    is_interp   = week_end <= cutoff_date & week_end != target_date,
-    is_phac     = week_end > cutoff_date
+    cum_val = corrected_value,
+    is_target = week_end == target_date,
+    is_interp = week_end <= cutoff_date & week_end != target_date,
+    is_phac = week_end > cutoff_date
   ) |>
-  filter(week_end >= init_date, week_end <= analysis_end) |>
+  filter(week_end >= booster_start, week_end <= analysis_end) |>
   arrange(week_end)
-
-# ------------------------------------------------------------
-# 3. Daily model input directly from daily_rate
-# ------------------------------------------------------------
 
 scenario_booster_inputs_df_actual <- make_booster_input(
   scenario_daily_df_actual,
   scenario_name
 )
-
-# ------------------------------------------------------------
-# 4. Validation
-# ------------------------------------------------------------
 
 print(
   validate_rollout(
@@ -60,6 +46,25 @@ print(
     scenario_booster_inputs_df_actual,
     scenario_name
   )
+)
+
+actual_first_positive_date <- scenario_booster_inputs_df_actual |>
+  filter(booster_vac_value > 0) |>
+  summarise(first_date = min(date)) |>
+  pull(first_date)
+
+print(
+  tibble(
+    scenario = scenario_name,
+    intended_start = booster_start,
+    first_positive_input_date = actual_first_positive_date,
+    lag_days = as.integer(actual_first_positive_date - booster_start)
+  )
+)
+
+stopifnot(
+  actual_first_positive_date >= booster_start,
+  actual_first_positive_date <= booster_start + days(7)
 )
 
 saveVars(

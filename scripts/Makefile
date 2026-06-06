@@ -39,7 +39,7 @@ fitsero.Rout: fitsero.R seroprevdata.rds ../data/raw_citf_data.csv params.rda
 calibrate.Rout: calibrate.R timevar_spec.rds seroprevdata.rds fitsero.rds params.rda
 	$(pipeR)
 
-posterior.Rout: posterior.R calibrate.rds
+posterior.Rout: posterior.R calibrate.rds timevar_spec.rds params.rda
 	$(pipeR)
 	
 ## This is francis' calibrate script.
@@ -49,46 +49,46 @@ calibrate_old.Rout: calibrate_old.R timevar_spec.rds seroprevdata.rds fitsero.rd
 build_multipliers.Rout: build_multipliers.R seroprevdata.rds params.rda calibrate.rds fitsero.rds ../data/serop_avgcase_data.csv params.rda
 	$(pipeR)
 	
-%.simulate.Rout: simulate.R %.rds build_multipliers.rds calibrate.rds
+%.simulate.Rout: simulate.R %.rds build_multipliers.rda calibrate.rds
 	$(pipeRcall)
 	
-base_beta.Rout: base_beta.R build_multipliers.rds calibrate.rds
-	$(pipeR)
-	
-beta_als2.Rout: beta_als2.R build_multipliers.rds calibrate.rds
+base_beta.Rout: base_beta.R build_multipliers.rda calibrate.rds
 	$(pipeR)
 
-beta_als3.Rout: beta_als3.R build_multipliers.rds calibrate.rds
-	$(pipeR)
-	
-beta_als4.Rout: beta_als4.R build_multipliers.rds calibrate.rds
+beta_als4.Rout: beta_als4.R build_multipliers.rda calibrate.rds
 	$(pipeR)
 
-policy_neutral.Rout: policy_neutral.R build_multipliers.rds calibrate.rds
+policy_neutral.Rout: policy_neutral.R build_multipliers.rda calibrate.rds
 	$(pipeR)
 	
-beta_ALS4_14days_only.Rout: beta_ALS4_14days_only.R build_multipliers.rds calibrate.rds
+beta_als4_0days_only.Rout: beta_als4_0days_only.R build_multipliers.rda calibrate.rds
+	$(pipeR)
+	
+beta_als4_7days_only.Rout: beta_als4_7days_only.R build_multipliers.rda calibrate.rds
+	$(pipeR)
+	
+beta_als4_14days_only.Rout: beta_als4_14days_only.R build_multipliers.rda calibrate.rds
 	$(pipeR)	
 	
-beta_ALS4_28days_only.Rout: beta_ALS4_28days_only.R build_multipliers.rds calibrate.rds
+beta_als4_28days_only.Rout: beta_als4_28days_only.R build_multipliers.rda calibrate.rds
 	$(pipeR)
 	
-beta_ALS4_40days_only.Rout: beta_ALS4_40days_only.R build_multipliers.rds calibrate.rds
+beta_als4_40days_only.Rout: beta_als4_40days_only.R build_multipliers.rda calibrate.rds
 	$(pipeR)
 	
-beta_ALS4_60days_only.Rout: beta_ALS4_60days_only.R build_multipliers.rds calibrate.rds
+beta_als4_60days_only.Rout: beta_als4_60days_only.R build_multipliers.rda calibrate.rds
 	$(pipeR)
 	
-beta_ALS4_90days_only.Rout: beta_ALS4_90days_only.R build_multipliers.rds calibrate.rds
+beta_als4_90days_only.Rout: beta_als4_90days_only.R build_multipliers.rda calibrate.rds
 	$(pipeR)
 	
-beta_ALS4_120days_only.Rout: beta_ALS4_120days_only.R build_multipliers.rds calibrate.rds
+beta_als4_120days_only.Rout: beta_als4_120days_only.R build_multipliers.rda calibrate.rds
 	$(pipeR)
 
-beta_ALS4_150days_only.Rout: beta_ALS4_150days_only.R build_multipliers.rds calibrate.rds
+beta_als4_150days_only.Rout: beta_als4_150days_only.R build_multipliers.rda calibrate.rds
 	$(pipeR)
 
-beta_ALS4_180days_only.Rout: beta_ALS4_180days_only.R build_multipliers.rds calibrate.rds
+beta_als4_180days_only.Rout: beta_als4_180days_only.R build_multipliers.rda calibrate.rds
 	$(pipeR)
 	
 control_reprod_numb.Rout: control_reprod_numb.R beta_als4.rds policy_neutral.rds seroprevdata.rds fitsero.rds params.rda calibrate.rds
@@ -128,42 +128,45 @@ actual_boosters__sim.Rout: actual_boosters__sim.R calibrate.rds base_beta.rds be
 	$(pipeR)
 
 early_boosters__sim.Rout: early_boosters__sim.R calibrate.rds base_beta.rds beta_als4.rds policy_neutral.rds \
-	build_multipliers.rds fitsero.rds seroprevdata.rds params.rda combine_vax_scenarios.rda  ../data/serop_avgcase_data.csv params.rda
+	build_multipliers.rda fitsero.rds seroprevdata.rds params.rda combine_vax_scenarios.rda  ../data/serop_avgcase_data.csv params.rda
 	$(pipeR)
 
 faster_rate__sim.Rout: faster_rate__sim.R calibrate.rds base_beta.rds beta_als4.rds policy_neutral.rds \
-	build_multipliers.rds fitsero.rds seroprevdata.rds params.rda combine_vax_scenarios.rda  ../data/serop_avgcase_data.csv params.rda
+	build_multipliers.rda fitsero.rds seroprevdata.rds params.rda combine_vax_scenarios.rda  ../data/serop_avgcase_data.csv params.rda
 	$(pipeR)
 
 slower_rate__sim.Rout: slower_rate__sim.R calibrate.rds base_beta.rds beta_als4.rds policy_neutral.rds \
-	build_multipliers.rds fitsero.rds seroprevdata.rds params.rda combine_vax_scenarios.rda  ../data/serop_avgcase_data.csv params.rda
+	build_multipliers.rda fitsero.rds seroprevdata.rds params.rda combine_vax_scenarios.rda  ../data/serop_avgcase_data.csv params.rda
 	$(pipeR)
 
 national_rate__sim.Rout: national_rate__sim.R calibrate.rds base_beta.rds beta_als4.rds policy_neutral.rds \
-	build_multipliers.rds fitsero.rds seroprevdata.rds params.rda combine_vax_scenarios.rda  ../data/serop_avgcase_data.csv params.rda
+	build_multipliers.rda fitsero.rds seroprevdata.rds params.rda combine_vax_scenarios.rda  ../data/serop_avgcase_data.csv params.rda
+	$(pipeR)
+	
+extract_booster_info.Rout: extract_booster_info.R calibrate.rds combine_vax_scenarios.rda 
 	$(pipeR)
 
-# new plots suggested by Amy
+### Simulate trajectories for ALS policies and vaccination scenarios	
 generate_figure1.Rout: generate_figure1.R calibrate.rds base_beta.rds beta_als4.rds policy_neutral.rds \
-	build_multipliers.rds fitsero.rds seroprevdata.rds params.rda combine_vax_scenarios.rda  ../data/serop_avgcase_data.csv params.rda
+	build_multipliers.rda fitsero.rds seroprevdata.rds params.rda combine_vax_scenarios.rda  ../data/serop_avgcase_data.csv params.rda
 	$(pipeR)
 	
 generate_figure2.Rout: generate_figure2.R calibrate.rds base_beta.rds beta_als4.rds policy_neutral.rds \
-	build_multipliers.rds fitsero.rds seroprevdata.rds params.rda combine_vax_scenarios.rda  ../data/serop_avgcase_data.csv params.rda
+	build_multipliers.rda fitsero.rds seroprevdata.rds params.rda combine_vax_scenarios.rda  ../data/serop_avgcase_data.csv params.rda
 	$(pipeR)
 
 generate_figure3.Rout: generate_figure3.R calibrate.rds base_beta.rds beta_als4.rds policy_neutral.rds \
-	build_multipliers.rds fitsero.rds seroprevdata.rds params.rda combine_vax_scenarios.rda  ../data/serop_avgcase_data.csv params.rda
+	build_multipliers.rda fitsero.rds seroprevdata.rds params.rda combine_vax_scenarios.rda  ../data/serop_avgcase_data.csv params.rda
 	$(pipeR)
 	
-### Simulate trajectories for ALS policies and vaccination scenarios
+
 simulate_als_vax_scenarios.Rout: simulate_als_vax_scenarios.R calibrate.rds base_beta.rds beta_als4.rds policy_neutral.rds \
 	build_multipliers.rds fitsero.rds seroprevdata.rds params.rda combine_vax_scenarios.rda  ../data/serop_avgcase_data.csv params.rda
 	$(pipeR)
 
-extension_als4.Rout: extension_als4.R calibrate.rds beta_ALS4_14days_only.rds beta_ALS4_28days_only.rds beta_ALS4_40days_only.rds \
-	beta_ALS4_60days_only.rds beta_ALS4_90days_only.rds beta_ALS4_120days_only.rds beta_ALS4_150days_only.rds beta_ALS4_180days_only.rds \
-	build_multipliers.rds fitsero.rds params.rda combine_vax_scenarios.rda ../data/serop_avgcase_data.csv 
+extension_als4.Rout: extension_als4.R calibrate.rds beta_ALS4_0days_only beta_ALS4_7days_only beta_als4_14days_only.rds beta_als4_28days_only.rds beta_als4_40days_only.rds \
+	beta_als4_60days_only.rds beta_als4_90days_only.rds beta_als4_120days_only.rds beta_als4_150days_only.rds beta_als4_180days_only.rds \
+	build_multipliers.rda fitsero.rds params.rda combine_vax_scenarios.rda ../data/serop_avgcase_data.csv 
 	$(pipeR)
 	
 Ignore += makestuff

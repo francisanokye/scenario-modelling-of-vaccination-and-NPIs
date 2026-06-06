@@ -450,7 +450,7 @@ booster_shot_facets <- ggplot(
   )
 
 save_png(
-  "../figures/booster_shots_policy.png",
+  "../figures/natl_booster_shots_policy.png",
   booster_shot_facets,
   width = 9000,
   height = 4500

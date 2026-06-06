@@ -1,42 +1,45 @@
+
 library(macpan2)
 library(ggplot2)
 library(dplyr)
 library(shellpipes)
 
-## We want to create a new specs without splines and simulate
-## the trajectories by inputing our own time series of beta_t
+loadEnvironments()
 
-stepkeep <- 149
+stepkeep <- 150
+noals_constant_value <- 0.365
 
-dat = rdsRead("build_multipliers")
+dat = df_est 
 cal = rdsRead("calibrate")
 spec = mp_optimized_spec(cal, spec_structure = "modified")
 time_steps = cal$simulator$tmb_model$time_steps$time_steps
 
-obs_serop = data.frame(
-    time = cal$cal_spec$integers$obs_times_logit_serop
-  , value = cal$cal_spec$default$obs_logit_serop
+obs_newR = data.frame(time = cal$cal_spec$integers$obs_times_log_newR, 
+                      value = cal$cal_spec$default$obs_log_newR
 )
+
 calibrated_beta = (spec
-  |> mp_simulator(time_steps, "beta")
-  |> mp_trajectory()
+                   |> mp_simulator(time_steps, "beta")
+                   |> mp_trajectory()
 )
 
-if (interactive()) {
-  (calibrated_beta
-    |> ggplot()
-    + aes(time, value)
-    + geom_line()
-  )
-}
+# uncomment to substitute the No-ALS Only values
+# calibrated_beta$value[stepkeep:length(calibrated_beta$value)] <- dat$beta0_hat
 
-new_beta = c(
-    calibrated_beta$value[1:stepkeep]
-  , dat$beta0_hat
-  , calibrated_beta$value[(1+stepkeep+nrow(dat)):time_steps]
-)
+# replace time 150 to 239
+calibrated_beta$value[stepkeep:239] <- noals_constant_value
+
+print((calibrated_beta
+      |> ggplot()
+      + aes(time, value)
+      + geom_line()
+))
+
+new_beta <- calibrated_beta$value
+
 stopifnot(length(new_beta) == time_steps)
 
 print(new_beta)
+
 
 rdsSave(new_beta)
