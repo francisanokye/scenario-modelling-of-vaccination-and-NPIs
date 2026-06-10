@@ -20,4 +20,4 @@
 *.txt
 scripts/makestuff/
 .Rproj.user
-.png
+*.png
