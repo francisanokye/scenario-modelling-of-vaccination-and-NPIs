@@ -500,6 +500,8 @@ set_scenario_spec_raw <- function(scenario_name, V2_init_override = NULL) {
     as.numeric(booster_df$vac_values)
   
   if (!is.null(V2_init_override)) {
+
+  if (scenario_name == "National Rate") {
     spec_i <- spec_i |>
       mp_tmb_insert(
         default = list(
@@ -509,6 +511,7 @@ set_scenario_spec_raw <- function(scenario_name, V2_init_override = NULL) {
   }
   
   spec_i
+  }
 }
 
 get_primary_only_prop_at_start <- function(V2_init_candidate) {
@@ -545,8 +548,8 @@ get_primary_only_prop_at_start <- function(V2_init_candidate) {
 calibrate_national_V2_init <- function(
     target_prop = CA_PRIMARY_ONLY_PROP_START,
     lower = 0,
-    upper = NL_POP
-) {
+    upper = NL_POP) 
+  {
   
   objective <- function(x) {
     get_primary_only_prop_at_start(x) - target_prop
@@ -567,13 +570,6 @@ calibrate_national_V2_init <- function(
 }
 
 new_V2_init <- calibrate_national_V2_init()
-
-cat("\nCalibrated National Rate V2_init:", new_V2_init, "\n")
-cat(
-  "National Rate primary-series-only proportion at booster start:",
-  round(100 * get_primary_only_prop_at_start(new_V2_init), 1),
-  "%\n"
-)
 
 set_scenario_spec <- function(scenario_name) {
   
