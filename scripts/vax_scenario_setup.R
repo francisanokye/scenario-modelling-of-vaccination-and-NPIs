@@ -236,8 +236,6 @@ make_rollout_scenario <- function(
   t0       <- as.numeric(actual_booster_start)
   scen_num <- as.numeric(base_dates)
   
-  # speed > 1 gives more doses earlier
-  # speed < 1 gives fewer doses earlier
   mapped_t <- t0 + speed * (scen_num - t0)
   
   scen_cum <- cum_fun(mapped_t)
