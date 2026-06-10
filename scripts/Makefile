@@ -104,7 +104,7 @@ vax_scenario_setup.Rout: vax_scenario_setup.R ../data/vaccination-coverage-map.c
 vax_actual_boosters.Rout: vax_actual_boosters.R vax_scenario_setup.rda
 	$(pipeR)
 
-vax_early_boosters.Rout: vax_early_boosters.R vax_scenario_setup.rda
+vax_early_boosters.Rout: vax_early_boosters.R vax_actual_boosters.rda vax_scenario_setup.rda
 	$(pipeR)
 
 vax_faster_rate.Rout: vax_faster_rate.R vax_scenario_setup.rda
@@ -113,7 +113,7 @@ vax_faster_rate.Rout: vax_faster_rate.R vax_scenario_setup.rda
 vax_slower_rate.Rout: vax_slower_rate.R vax_scenario_setup.rda
 	$(pipeR)
 
-vax_national_rate.Rout: vax_national_rate.R initial_can_rate.rda vax_scenario_setup.rda
+vax_national_rate.Rout: vax_national_rate.R initial_can_rate.rda vax_scenario_setup.rda ../data/vaccination-coverage-map.csv
 	$(pipeR)
 
 combine_vax_scenarios.Rout: combine_vax_scenarios.R vax_scenario_setup.rda vax_actual_boosters.rda vax_early_boosters.rda \

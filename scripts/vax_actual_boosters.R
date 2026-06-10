@@ -1,4 +1,3 @@
-
 suppressPackageStartupMessages({
   library(dplyr)
   library(tidyr)
@@ -9,66 +8,47 @@ suppressPackageStartupMessages({
 loadEnvironments()
 
 scenario_name <- "Actual Boosters"
-target_date   <- as.Date("2022-01-11")
+speed_factor  <- 1.0
 
-scenario_daily_df_actual <- make_rollout_scenario(
-  daily_base,
-  speed = 1.00,
-  shift_days = 0,
-  label = scenario_name,
-  scenario_start = booster_start
+# build the actual booster rollout
+daily_scenarios_df <- bind_rows(
+  make_rollout_scenario(
+    daily_base,
+    speed      = speed_factor,
+    shift_days = 0,
+    label      = scenario_name
+  )
 ) |>
-  filter(date >= booster_start, date <= analysis_end) |>
-  arrange(date)
-
-scenario_weekly_df_actual <- nl_actual |>
-  transmute(
-    scenario = scenario_name,
-    week_end,
-    weekly_rate = weekly_inc_star,
-    cum_prop,
-    cum_val = corrected_value,
-    is_target = week_end == target_date,
-    is_interp = week_end <= cutoff_date & week_end != target_date,
-    is_phac = week_end > cutoff_date
+  mutate(
+    days_since_init = as.integer(date - init_date)
   ) |>
-  filter(week_end >= booster_start, week_end <= analysis_end) |>
-  arrange(week_end)
+  filter(days_since_init >= 0)
 
-scenario_booster_inputs_df_actual <- make_booster_input(
-  scenario_daily_df_actual,
-  scenario_name
-)
+# weekly curve for plotting
+scenario_weekly_df_actual <- daily_scenarios_df |>
+  group_by(scenario, week_end) |>
+  summarise(
+    weekly_rate = sum(daily_rate, na.rm = TRUE),
+    cum_val     = max(cum_val, na.rm = TRUE),
+    cum_prop    = max(cum_prop, na.rm = TRUE),
+    .groups     = "drop"
+  ) |>
+  mutate(is_star = FALSE) |>
+  arrange(week_end) |>
+  filter(week_end >= actual_booster_start + 1)
 
-print(
-  validate_rollout(
-    scenario_daily_df_actual,
-    scenario_booster_inputs_df_actual,
-    scenario_name
-  )
-)
-
-actual_first_positive_date <- scenario_booster_inputs_df_actual |>
-  filter(booster_vac_value > 0) |>
-  summarise(first_date = min(date)) |>
-  pull(first_date)
-
-print(
-  tibble(
-    scenario = scenario_name,
-    intended_start = booster_start,
-    first_positive_input_date = actual_first_positive_date,
-    lag_days = as.integer(actual_first_positive_date - booster_start)
-  )
-)
-
-stopifnot(
-  actual_first_positive_date >= booster_start,
-  actual_first_positive_date <= booster_start + days(7)
-)
+# daily booster input for the model
+scenario_booster_inputs_df_actual <- daily_scenarios_df |>
+  transmute(
+    scenario,
+    date,
+    day               = as.integer(date - init_date),
+    booster_vac_value = as.numeric(daily_rate)
+  ) |>
+  arrange(scenario, day) |>
+  filter(date >= actual_booster_start + 1)
 
 saveVars(
-  scenario_daily_df_actual,
   scenario_weekly_df_actual,
   scenario_booster_inputs_df_actual
 )

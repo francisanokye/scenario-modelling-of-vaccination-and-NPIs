@@ -17,23 +17,18 @@ loadEnvironments()
 # Load scenario objects
 # ============================================================
 
-actual_daily   <- scenario_daily_df_actual
 actual_weekly  <- scenario_weekly_df_actual
 actual_inputs  <- scenario_booster_inputs_df_actual
 
-early_daily    <- scenario_daily_df_early
 early_weekly   <- scenario_weekly_df_early
 early_inputs   <- scenario_booster_inputs_df_early
 
-faster_daily   <- scenario_daily_df_faster
 faster_weekly  <- scenario_weekly_df_faster
 faster_inputs  <- scenario_booster_inputs_df_faster
 
-slower_daily   <- scenario_daily_df_slower
 slower_weekly  <- scenario_weekly_df_slower
 slower_inputs  <- scenario_booster_inputs_df_slower
 
-national_daily  <- scenario_daily_df_national
 national_weekly <- scenario_weekly_df_national
 national_inputs <- scenario_booster_inputs_df_national
 
@@ -47,69 +42,6 @@ init_date <- analysis_start - offset
 
 sim_horizon <- 530L
 analysis_end <- init_date + sim_horizon - 1L
-
-actual_booster_start <- as.Date("2021-11-08")
-
-scenario_name_early <- unique(early_weekly$scenario)
-stopifnot(length(scenario_name_early) == 1)
-
-early_shift_days <- str_extract(
-  scenario_name_early,
-  "-?\\d+(?= Days\\))"
-) |>
-  as.integer()
-
-if (is.na(early_shift_days)) {
-  early_shift_days <- -35L
-}
-
-early_start_date <- actual_booster_start + days(early_shift_days)
-
-# ============================================================
-# Standardize display labels
-# ============================================================
-
-rename_scenario <- function(x) {
-  x |>
-    mutate(
-      scenario = case_when(
-        scenario == "Early Boosters (-35 Days)" ~ "Early Boosters",
-        TRUE ~ scenario
-      )
-    )
-}
-
-actual_daily    <- rename_scenario(actual_daily)
-actual_weekly   <- rename_scenario(actual_weekly)
-actual_inputs   <- rename_scenario(actual_inputs)
-
-early_daily     <- rename_scenario(early_daily)
-early_weekly    <- rename_scenario(early_weekly)
-early_inputs    <- rename_scenario(early_inputs)
-
-faster_daily    <- rename_scenario(faster_daily)
-faster_weekly   <- rename_scenario(faster_weekly)
-faster_inputs   <- rename_scenario(faster_inputs)
-
-slower_daily    <- rename_scenario(slower_daily)
-slower_weekly   <- rename_scenario(slower_weekly)
-slower_inputs   <- rename_scenario(slower_inputs)
-
-national_daily  <- rename_scenario(national_daily)
-national_weekly <- rename_scenario(national_weekly)
-national_inputs <- rename_scenario(national_inputs)
-
-# ============================================================
-# Checks
-# ============================================================
-
-stopifnot(
-  exists("NL_POP"),
-  exists("eligible_pop"),
-  init_date + offset == analysis_start,
-  analysis_start + (0 - offset) == init_date,
-  early_start_date >= init_date
-)
 
 # ============================================================
 # Add missing logical columns if absent
@@ -131,24 +63,6 @@ for (obj in c(
   
   assign(obj, x)
 }
-
-# ============================================================
-# Combine daily data
-# ============================================================
-
-daily_scenarios_df <- bind_rows(
-  actual_daily,
-  early_daily,
-  faster_daily,
-  slower_daily,
-  national_daily
-) |>
-  mutate(date = as.Date(date)) |>
-  filter(
-    date >= init_date,
-    date <= analysis_end
-  ) |>
-  arrange(scenario, date)
 
 # ============================================================
 # Combine weekly data
@@ -188,7 +102,7 @@ weekly_scenarios_df <- bind_rows(
   ungroup()
 
 # ============================================================
-# Booster inputs
+# Booster inputs : daily data
 # ============================================================
 
 booster_inputs_df <- bind_rows(
@@ -204,7 +118,6 @@ booster_inputs_df <- bind_rows(
     date <= analysis_end
   ) |>
   arrange(scenario, day)
-
 
 # ============================================================
 # Plot theme
@@ -240,8 +153,8 @@ theme_pub <- theme_clean() +
 vax_order <- c(
   "Actual Boosters",
   "Early Boosters",
-  "Faster Rate",
-  "Slower Rate",
+  "Faster Boosters",
+  "Slower Boosters",
   "National Rate"
 )
 
@@ -252,8 +165,8 @@ vax_order <- c(
 vax_cols <- c(
   "Actual Boosters" = "#4D4D4D",
   "Early Boosters"  = "blue",
-  "Faster Rate"     = "orange",
-  "Slower Rate"     = "magenta",
+  "Faster Boosters"     = "orange",
+  "Slower Boosters"     = "magenta",
   "National Rate"   = "springgreen3"
 )
 
@@ -262,7 +175,7 @@ vax_cols <- c(
 # ============================================================
 
 plot_data <- weekly_scenarios_df |>
-  filter(week_end <= analysis_end) |>
+  #filter(week_end <= analysis_end) |>
   mutate(
     scenario = factor(scenario, levels = vax_order)
   )
@@ -283,7 +196,7 @@ target_point <- tibble(
 # Plot limits
 # ============================================================
 
-x_min <- early_start_date - days(2)
+x_min <- early_start_date 
 x_max <- as.Date("2022-06-01")
 
 plot_data <- plot_data |>
@@ -411,12 +324,11 @@ daily_rate_plot_df <- booster_inputs_df |>
   mutate(
     scenario = recode(
       scenario,
-      "Early Boosters (-35 Days)" = "Earlier boosters",
-      "Early Boosters" = "Earlier boosters",
-      "Actual Boosters" = "Actual boosters",
-      "Slower Rate" = "Slower boosters",
-      "Faster Rate" = "Faster boosters",
-      "National Rate" = "National rate"
+      "Early Boosters" = "Early Boosters",
+      "Actual Boosters" = "Actual Boosters",
+      "Slower Boosters" = "Slower Boosters",
+      "Faster Boosters" = "Faster Boosters",
+      "National Rate" = "National Rate"
     )
   ) |>
   filter(
@@ -427,21 +339,21 @@ daily_rate_plot_df <- booster_inputs_df |>
     scenario = factor(
       scenario,
       levels = c(
-        "Actual boosters",
-        "Earlier boosters",
-        "Faster boosters",
-        "Slower boosters",
-        "National rate"
+        "Actual Boosters",
+        "Early Boosters",
+        "Faster Boosters",
+        "Slower Boosters",
+        "National Rate"
       )
     )
   )
 
 daily_rate_cols <- c(
-  "Actual boosters"  = "#4D4D4D",
-  "Earlier boosters" = "blue",
-  "Faster boosters"  = "orange",
-  "Slower boosters"  = "magenta",
-  "National rate"    = "springgreen3"
+  "Actual Boosters"  = "#4D4D4D",
+  "Early Boosters" = "blue",
+  "Faster Boosters"  = "orange",
+  "Slower Boosters"  = "magenta",
+  "National Rate"    = "springgreen3"
 )
 
 daily_rate_plot <- ggplot(
@@ -515,8 +427,8 @@ dev.off()
 # Save variables
 # ============================================================
 
+
 saveVars(
   weekly_scenarios_df,
-  daily_scenarios_df,
   booster_inputs_df
 )
