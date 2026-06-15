@@ -1,4 +1,3 @@
-
 suppressPackageStartupMessages({
   library(dplyr)
   library(lubridate)
@@ -30,14 +29,15 @@ anchor_start    <- as.Date("2021-12-15")
 anchor_end      <- as.Date("2022-05-22")
 
 # ---- Model constants ----
-kappa1 <- 1
-kappa2 <- 0.91
-kappa3 <- 0.3
+kappa1 <- params[["kappa1"]]
+kappa2 <- params[["kappa2"]]
+kappa3 <- params[["kappa3"]]
 
-gamma_i <- 1/7
-gamma_a <- 1/10
-mu      <- 0.678
-zeta    <- 0.75
+gamma_i <- params[["gamma_i"]]
+gamma_a <- params[["gamma_a"]]
+
+mu      <- params[["mu"]]
+zeta    <- params[["zeta"]]
 
 p1 <- 0.15
 p2 <- 0.85

@@ -30,6 +30,10 @@ flows <- list(
   A ~ A1 + A2 + A3,
   I ~ I1 + I2 + I3,
   R ~ R1 + R2 + R3,
+
+  p1 ~ S1/N ,
+  p2 ~ V2/N ,
+  p3 ~ V3/N ,
   
   cum_double_vac ~ cum_double_vac + double_vac,
   cum_booster ~ cum_booster + booster_shot,
@@ -73,10 +77,10 @@ flows <- list(
   newR_total ~ asymp_recov1 + asymp_recov2 + asymp_recov3 +
     symp_recov1 + symp_recov2 + symp_recov3,
   
-  sero_inc_total ~ inc,
+#  sero_inc_total ~ inc,
   serop_total ~ R / N,
-  beta_thing ~ beta,
-  total_inc ~ R1 + R2 + R3
+  beta_thing ~ beta
+#  total_inc ~ R1 + R2 + R3
 )
 
 saveVars(flows)

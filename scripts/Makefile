@@ -39,26 +39,16 @@ fitsero.Rout: fitsero.R seroprevdata.rds ../data/raw_citf_data.csv params.rda
 calibrate.Rout: calibrate.R timevar_spec.rds seroprevdata.rds fitsero.rds params.rda
 	$(pipeR)
 
-posterior.Rout: posterior.R calibrate.rds timevar_spec.rds params.rda
-	$(pipeR)
-	
-## This is francis' calibrate script.
-calibrate_old.Rout: calibrate_old.R timevar_spec.rds seroprevdata.rds fitsero.rds params.rda
+calibrate_plots.Rout: calibrate_plots.R calibrate.rds seroprevdata.rds fitsero.rds
 	$(pipeR)
 
-build_multipliers.Rout: build_multipliers.R seroprevdata.rds params.rda calibrate.rds fitsero.rds ../data/serop_avgcase_data.csv params.rda
-	$(pipeR)
-	
-%.simulate.Rout: simulate.R %.rds build_multipliers.rda calibrate.rds
-	$(pipeRcall)
-	
-base_beta.Rout: base_beta.R build_multipliers.rda calibrate.rds
+base_beta.Rout: base_beta.R calibrate.rds
 	$(pipeR)
 
-beta_als4.Rout: beta_als4.R build_multipliers.rda calibrate.rds
+beta_als4.Rout: beta_als4.R base_beta.rds
 	$(pipeR)
 
-policy_neutral.Rout: policy_neutral.R build_multipliers.rda calibrate.rds
+policy_neutral.Rout: policy_neutral.R base_beta.rds
 	$(pipeR)
 	
 control_reprod_numb.Rout: control_reprod_numb.R beta_als4.rds policy_neutral.rds seroprevdata.rds fitsero.rds params.rda calibrate.rds

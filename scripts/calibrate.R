@@ -24,11 +24,22 @@ loadEnvironments()
 conflicted::conflicts_prefer(dplyr::filter)
 
 spline_beta = TRUE
+# spline_beta = FALSE
 
 # load input data
 timevar_spec <- rdsRead("timevar_spec.rds")
 seroprevdata <- rdsRead("seroprevdata.rds")
-fitserodata <- rdsRead("fitsero.rds")
+fitsero <- rdsRead("fitsero.rds")
+
+calibdata = (fitsero
+	|> select(-date)
+	|> dplyr::filter(matrix == "newR")
+	|> mutate(matrix = "log_newR", value = log(value))
+#	|> filter(time > 153)
+)
+
+#print(calibdata)
+
 time_steps = max(seroprevdata$time)
 upper_plot_time = 300
 sim_horizon = 530
@@ -37,7 +48,7 @@ date0 = as.Date("2021-12-15")
 
 # construct spline basis for beta(t)
 if (spline_beta) {
-  basis_cols = 11
+  basis_cols = 15
   basis_rows = time_steps
   X = splines::ns(1:basis_rows
                   , basis_cols
@@ -75,19 +86,25 @@ priors = list(log_beta = mp_norm(log(0.25), log(1))
 # fit model using seroprevalence data
 calibrator = mp_tmb_calibrator(
   spec = timevar_spec |> mp_rk4()
-  , data = (fitserodata
-            |> select(-date) 
-            |> dplyr::filter(matrix == "newR") 
-            |> mutate(matrix = "log_newR", value = log(value))
-  )
+  , data = (calibdata)
   , time = mp_sim_bounds(1, time_steps)
-  , traj = list(log_newR = mp_norm(sd = mp_fit(0.1)))
+  , traj = list(log_newR = mp_norm(sd = mp_fit(0.2)))
   , par = priors
-  , outputs = c("log_beta_thing", "log_inc", "log_newR","logit_serop_total", "cum_double_vac", "cum_booster")
+  , outputs = c("log_beta_thing", "log_inc", "log_newR","logit_serop_total", "cum_double_vac", "cum_booster","p1","p2","p3")
 )
 
 # optimize fit
 mp_optimize(calibrator)
+
+
+simcalib <- mp_trajectory(calibrator)
+
+gg <- (ggplot(simcalib,aes(time,value))
+	+ geom_line()
+	+ facet_wrap(~matrix,scale="free")
+)
+
+print(gg)
 
 
 # extract fitted coefficients
