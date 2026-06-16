@@ -62,6 +62,7 @@ fitdat <- (incdat
 )
 
 print(fitdat)
+fitdat$value[1] <- fitdat$value[2]
 
 rdsSave(fitdat)
 
