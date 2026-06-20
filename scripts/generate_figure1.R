@@ -51,6 +51,12 @@ max_or_na <- function(x) {
   max(x)
 }
 
+sanitize_tag <- function(x) {
+  x <- gsub("[^A-Za-z0-9]+", "_", x)
+  x <- gsub("_+", "_", x)
+  gsub("^_|_$", "", x)
+}
+
 calibrator <- rdsRead("calibrate")
 
 padded_beta_noals <- rdsRead("policy_neutral")
@@ -212,6 +218,13 @@ model_outputs <- c(
   "cum_booster"
 )
 
+diagnostic_outputs <- c(
+  "S1", "V2", "V3", "E1", "E2", "E3", "A1", "A2",
+  "A3", "I1", "I2", "I3", "R1", "R2", "R3", "inc",
+  "inc_leq2dose", "inc_booster", "p1", "p2", "p3",
+  "cum_booster", "cum_double_vac"
+)
+
 sim_grid <- expand.grid(
   policy_name = names(policy_list),
   vax_name    = names(vax_scenario_specs),
@@ -241,6 +254,52 @@ for (i in seq_len(nrow(sim_grid))) {
       policy       = policy_name,
       vax_scenario = vax_name
     )
+  
+  diagnostic <- (spec_i
+                 |> mp_simulator(sim_horizon,
+                                 outputs = diagnostic_outputs
+                 )
+                 |> mp_trajectory_sd(conf.int = TRUE, back_transform = TRUE)
+                 |> dplyr::mutate(date = analysis_start + (time - offset))
+                 |> ggplot() +
+                   geom_rect(data = data.frame(xmin = analysis_start - offset, xmax = analysis_start),
+                             aes(xmin = xmin, xmax = xmax, ymin = -Inf, ymax = Inf), inherit.aes = FALSE, fill = "grey30", alpha = 0.25) +
+                   geom_vline(xintercept = analysis_start + (231 - offset), color = "black", linetype = 4, linewidth = 1.0) +
+                   geom_vline(xintercept = analysis_start + (300 - offset), colour = "purple", linetype = 4, linewidth = 1.5) +
+                   aes(date, value) +
+                   geom_line() +
+                   labs(title = paste0("Diagnostic compartment trajectories - ", policy_name, " | ", vax_name)) +
+                   scale_x_date(expand = c(0, 0), date_breaks = "month", date_labels = "%b %d %Y") +
+                   facet_wrap(~matrix, scales = "free") +
+                   theme_clean() +
+                   theme(
+                     axis.text.x       = element_text(size = 12,  hjust = 1, angle = 45, margin = margin(t = 8)),
+                     axis.text.y       = element_text(size = 18),
+                     axis.title.x      = element_text(size = 18),
+                     axis.title.y      = element_text(size = 18),
+                     plot.title        = element_text(size = 24, hjust = 0.5, face = "plain"),
+                     strip.text        = element_text(size = 22, face = "plain", hjust = 0.5),
+                     strip.background  = element_blank(),
+                     legend.position   = "top",
+                     legend.direction  = "horizontal",
+                     legend.box        = "horizontal",
+                     legend.spacing.x  = unit(1.2, "cm"),
+                     legend.spacing.y  = unit(0.5, "cm"),
+                     legend.background = element_blank(),
+                     legend.text       = element_text(size = 22, face = "plain"),
+                     panel.spacing     = unit(1.5, "cm"),
+                     plot.background   = element_blank()
+                   )
+  )
+  
+  diagnostic_tag <- paste0(sanitize_tag(policy_name), "_", sanitize_tag(vax_name))
+  
+  save_png(
+    file.path(fig_dir, paste0("diagnostic_", diagnostic_tag, ".png")),
+    diagnostic,
+    width  = 10000,
+    height = 5000
+  )
 }
 
 results_df <- bind_rows(all_sim_results) |>
