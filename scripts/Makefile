@@ -27,7 +27,7 @@ params.Rout: params.R vacdat.rda
 flows.Rout: flows.R params.rda 
 	$(pipeR)
 
-timevar_spec.Rout: timevar_spec.R flows.rda vacdat.rda combine_vax_scenarios.rda params.rda # vax_scenario_setup.rda 
+timevar_spec.Rout: timevar_spec.R flows.rda vacdat.rda combine_vax_scenarios.rda params.rda 
 	$(pipeR)
 	
 seroprevdata.Rout: seroprevdata.R params.rda ../data/raw_citf_data.csv    

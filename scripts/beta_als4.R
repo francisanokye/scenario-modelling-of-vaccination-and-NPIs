@@ -3,7 +3,7 @@ library(shellpipes)
 loadEnvironments()
 
 stepkeep <- 150
-als4_constant_value  <- 0.175
+als4_constant_value  <- 0.245
 
 base_beta <- rdsRead()
 
