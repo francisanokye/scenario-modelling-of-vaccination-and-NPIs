@@ -47,11 +47,6 @@ scenario_booster_inputs_df_slower <- daily_scenarios_df |>
   arrange(scenario, day) |>
   filter(date >= actual_booster_start + 1)
 
-cat(sprintf(
-  "\n== Slower Boosters: final coverage = %.1f%% ==\n",
-  max(cumsum(scenario_booster_inputs_df_slower$booster_vac_value)) / NL_POP * 100
-))
-
 saveVars(
   scenario_weekly_df_slower,
   scenario_booster_inputs_df_slower

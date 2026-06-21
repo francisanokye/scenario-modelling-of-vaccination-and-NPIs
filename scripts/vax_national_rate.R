@@ -1,3 +1,4 @@
+
 suppressPackageStartupMessages({
   library(dplyr)
   library(tidyr)
@@ -10,7 +11,40 @@ loadEnvironments()
 
 scenario_name <- "National Rate"
 
-# replace one large weekly outlier and spread the excess forward
+day_start <- as.Date("2021-11-08")
+
+# ==============================================================
+# Build can_weekly_nl_inputs: the Canada-wide weekly additional-dose
+# series from the same raw vaccination-coverage-map.csv used for the NL
+# (actual) scenario, rescaled from Canada's population to NL's population.
+#
+# Rescaling: at each week_end, Canada's cumulative additional-dose count
+# is converted to a proportion of CA_POP, then that SAME proportion is
+# applied to NL_POP to get an "NL-equivalent" cumulative count 
+# ==============================================================
+dat <- csvRead()
+
+can_weekly_nl_inputs <- dat |>
+  filter(prename == "Canada") |>
+  select(week_end, contains("numtotal")) |>
+  mutate(
+    week_end = as.Date(week_end),
+    numtotal_1additional   = ifelse(is.na(numtotal_1additional), 0, numtotal_1additional),
+    numtotal_2nd_additional = ifelse(is.na(numtotal_2nd_additional), 0, numtotal_2nd_additional),
+    numtotal_additional = numtotal_1additional + numtotal_2nd_additional,
+    # rescale Canada's cumulative proportion to NL's population
+    cum_val_raw = numtotal_additional / CA_POP * NL_POP
+  ) |>
+  arrange(week_end) |>
+  mutate(weekly_rate = pmax(cum_val_raw - lag(cum_val_raw, default = 0), 0)) |>
+  select(week_end, weekly_rate)
+
+# ==============================================================
+# Replace one large weekly outlier and spread the excess forward
+# (unchanged from the original national scenario script; addresses
+# reporting-lag artifacts in the Canada-wide series, e.g. the
+# 2022-01-22 spike caused by an 8-day reporting gap)
+# ==============================================================
 replace_weekly_outlier_preserve_total <- function(
     df,
     value_col            = "weekly_rate",
@@ -99,11 +133,13 @@ replace_weekly_outlier_preserve_total <- function(
     select(-row_id, -value_raw)
 }
 
-# weekly canadian-rate curve capped at the canadian final uptake level
+# ==============================================================
+# Weekly national-rate curve, rescaled to NL population.
+# ==============================================================
 scenario_weekly_df_national <- can_weekly_nl_inputs |>
   arrange(week_end) |>
   filter(
-    week_end >= init_date,
+    week_end >= day_start,
     week_end <= analysis_end
   ) |>
   mutate(
@@ -118,32 +154,27 @@ scenario_weekly_df_national <- can_weekly_nl_inputs |>
     redistribute_weeks   = 4
   ) |>
   mutate(
-    cum_val  = cumsum(weekly_rate),
-    cum_val  = pmin(cummax(cum_val), eligible_pop_CA),
+    cum_val  = cummax(pmax(cumsum(weekly_rate), 0)),
     cum_prop = clip01(cum_val / NL_POP),
-    is_star  = FALSE,
     scenario = scenario_name
   ) |>
-  select(
-    scenario,
-    week_end,
-    weekly_rate,
-    cum_prop,
-    cum_val,
-    is_star,
-    outlier_corrected
-  ) |>
+  arrange(week_end) |>
+  mutate(weekly_rate = pmax(cum_val - lag(cum_val, default = 0), 0)) |>
   mutate(
-    weekly_rate = pmax(cum_val - lag(cum_val, default = 0), 0)
+    is_target = FALSE,
+    is_phac   = FALSE,
+    is_interp = TRUE,
+    source    = "national_rescaled"
+  ) |>
+  select(
+    scenario, week_end, weekly_rate, cum_val, cum_prop,
+    is_target, is_phac, is_interp, source, outlier_corrected
   )
 
-print(
-  scenario_weekly_df_national |>
-    filter(outlier_corrected) |>
-    select(week_end, weekly_rate, cum_val)
-)
-
-# spread each weekly total evenly across its reporting interval
+# ==============================================================
+# Spread each weekly total evenly across its reporting interval, to get
+# a daily-resolution series
+# ==============================================================
 scenario_daily_df_national <- scenario_weekly_df_national |>
   arrange(week_end) |>
   mutate(
@@ -159,7 +190,7 @@ scenario_daily_df_national <- scenario_weekly_df_national |>
   unnest(date) |>
   ungroup() |>
   filter(
-    date >= init_date,
+    date >= day_start,
     date <= analysis_end
   ) |>
   group_by(scenario, week_end) |>
@@ -170,44 +201,57 @@ scenario_daily_df_national <- scenario_weekly_df_national |>
   ungroup() |>
   arrange(date) |>
   mutate(
-    daily_rate      = pmax(replace_na(daily_rate, 0), 0),
-    cum_val         = cumsum(daily_rate),
-    cum_prop        = clip01(cum_val / NL_POP),
-    days_since_init = as.integer(date - init_date)
-  ) |>
-  transmute(
-    date,
-    cum_val,
-    daily_rate,
-    cum_prop,
-    week_end,
-    scenario,
-    weekly_rate,
-    days_since_init,
-    outlier_corrected
+    daily_rate = pmax(replace_na(daily_rate, 0), 0),
+    cum_val    = cummax(pmax(cumsum(daily_rate), 0)),
+    cum_prop   = clip01(cum_val / NL_POP),
+    day        = as.integer(date - init_date)
   )
 
-# daily booster input for the model
+# ==============================================================
+# Daily booster input for the model (combiner-compatible schema)
+# ==============================================================
 scenario_booster_inputs_df_national <- scenario_daily_df_national |>
   transmute(
     scenario          = scenario_name,
     date,
     day               = as.integer(date - init_date),
-    booster_vac_value = as.numeric(daily_rate)
+    booster_vac_value = as.numeric(daily_rate),
+    cumulative        = cum_val,
+    prop_total_pop    = cum_prop
   ) |>
-  filter(
-    day >= 0,
-    date <= analysis_end
-  ) |>
+  filter(day >= 0, date <= analysis_end) |>
   group_by(scenario, day) |>
   summarise(
     date              = min(date),
     booster_vac_value = sum(booster_vac_value, na.rm = TRUE),
+    cumulative        = max(cumulative, na.rm = TRUE),
+    prop_total_pop    = max(prop_total_pop, na.rm = TRUE),
     .groups           = "drop"
   ) |>
-  arrange(day)
+  arrange(day) |>
+  select(scenario, date, day, booster_vac_value, cumulative, prop_total_pop)
 
 
+
+# quick diagnostic plot
+print(
+  ggplot(scenario_daily_df_national, aes(week_end, daily_rate)) +
+    geom_line() +
+    geom_point(aes(shape = outlier_corrected), size = 2) +
+    scale_y_continuous(labels = scales::comma) +
+    labs(
+      x       = "Week end",
+      y       = "Daily booster-dose rate (Canada-scaled to NL)",
+      shape   = "Corrected week",
+      caption = sprintf(
+        "Reference ceiling (not applied as a cap): %.1f%% of NL_POP (%d people)",
+        eligible_pop_CA / NL_POP * 100, eligible_pop_CA
+      )
+    ) +
+    theme_minimal()
+)
+
+# ==============================================================
 saveVars(
   scenario_daily_df_national,
   scenario_weekly_df_national,
