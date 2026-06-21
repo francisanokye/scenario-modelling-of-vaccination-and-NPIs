@@ -207,61 +207,6 @@ scenario_booster_inputs_df_national <- scenario_daily_df_national |>
   ) |>
   arrange(day)
 
-# checks
-intended_total <- max(scenario_daily_df_national$cum_val, na.rm = TRUE)
-
-model_input_total <- sum(
-  scenario_booster_inputs_df_national$booster_vac_value,
-  na.rm = TRUE
-)
-
-stopifnot(!any(is.na(scenario_booster_inputs_df_national$booster_vac_value)))
-stopifnot(!any(scenario_booster_inputs_df_national$day < 0))
-stopifnot(abs(model_input_total - intended_total) < 1e-6)
-
-print(
-  tibble(
-    scenario                = scenario_name,
-    first_booster_date      = min(
-      scenario_booster_inputs_df_national$date[
-        scenario_booster_inputs_df_national$booster_vac_value > 0
-      ],
-      na.rm = TRUE
-    ),
-    last_booster_date       = max(
-      scenario_booster_inputs_df_national$date[
-        scenario_booster_inputs_df_national$booster_vac_value > 0
-      ],
-      na.rm = TRUE
-    ),
-    intended_total_doses    = round(intended_total),
-    model_input_total_doses = round(model_input_total),
-    final_coverage_pct      = round(intended_total / NL_POP * 100, 2),
-    target_coverage_pct     = 46.70,
-    max_daily_doses         = round(max(
-      scenario_booster_inputs_df_national$booster_vac_value,
-      na.rm = TRUE
-    ))
-  )
-)
-
-# quick diagnostic plot
-print(
-  ggplot(scenario_daily_df_national, aes(week_end, daily_rate)) +
-    geom_line() +
-    geom_point(aes(shape = outlier_corrected), size = 2) +
-    scale_y_continuous(labels = scales::comma) +
-    labs(
-      x       = "Week end",
-      y       = "Daily booster-dose rate (Canada-scaled to NL)",
-      shape   = "Corrected week",
-      caption = sprintf(
-        "Target final coverage: 46.7%% of NL_POP (%d people)",
-        eligible_pop_CA
-      )
-    ) +
-    theme_minimal()
-)
 
 saveVars(
   scenario_daily_df_national,

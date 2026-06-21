@@ -84,7 +84,7 @@ combine_vax_scenarios.Rout: combine_vax_scenarios.R vax_scenario_setup.rda vax_a
 	
 ### Simulate trajectories for ALS policies and vaccination scenarios	
 generate_figure1.Rout: generate_figure1.R calibrate.rds base_beta.rds beta_als4.rds policy_neutral.rds \
-	build_multipliers.rda fitsero.rds seroprevdata.rds params.rda combine_vax_scenarios.rda  ../data/serop_avgcase_data.csv params.rda
+	fitsero.rds seroprevdata.rds params.rda combine_vax_scenarios.rda  ../data/serop_avgcase_data.csv params.rda
 	$(pipeR)
 
 extract_booster_info.Rout: extract_booster_info.R calibrate.rds combine_vax_scenarios.rda 
