@@ -65,8 +65,8 @@ baseRc <- (mp_trajectory_sd(calibrator,conf.int=TRUE, back_transform=TRUE)
 		, p1 = p1_value
 		, p2 = p2_value
 		, p3 = p3_value
-		, susceptibility = p1 * kappa1 + p2 * kappa2 + p3 * kappa3
-#  	, susceptibility = 0.15 * kappa1 + 0.85 * kappa2 + 0 * kappa3
+#		, susceptibility = p1 * kappa1 + p2 * kappa2 + p3 * kappa3
+  	, susceptibility = 0.15 * kappa1 + 0.85 * kappa2 + 0 * kappa3
 		, psum = p1 + p2 + p3
 		, mult_t = bracket_term * susceptibility
 		, Rc = beta*mult_t
@@ -168,6 +168,79 @@ gg <- (ggplot(comboRc, aes(date, Rc, color = scenario, fill = scenario))
        )
 )
 
-png("../figures/timevarying_props_reprod_numb.png", width = 5000, height = 2000, res = 300, bg = "white",type = "cairo")
+png("../figures/reprod_numb.png", width = 5000, height = 2000, res = 300, bg = "white",type = "cairo")
 print(gg)
+dev.off()
+
+
+gg1 <- (ggplot(baseRc, aes(date, beta))
+        + geom_ribbon(
+          aes(ymin = beta_lwr, ymax = beta_upr, fill = "Actual NPIs"),
+          alpha = 0.2, colour = NA
+        )
+        + geom_line(aes(colour = "Actual NPIs"), linewidth = 2)
+        + geom_line(
+          aes(y = beta_noALS[-c(1:(offset0 - 1))], colour = "No NPIs"),
+          linewidth = 2
+        )
+        + geom_line(
+          aes(y = beta_ALS4only[-c(1:(offset0 - 1))], colour = "Strict NPIs"),
+          linewidth = 2
+        )
+        + geom_vline(
+          xintercept = cut_date,
+          linetype = "dashed",
+          linewidth = 3
+        )
+        + scale_color_manual(
+          name = NULL,
+          breaks = c("Actual NPIs", "No NPIs", "Strict NPIs"),
+          values = c(
+            "Actual NPIs" = "black",
+            "No NPIs" = "red",
+            "Strict NPIs" = "#00C5CD"
+          )
+        )
+        + scale_fill_manual(
+          name = NULL,
+          breaks = c("Actual NPIs", "No NPIs", "Strict NPIs"),
+          values = c(
+            "Actual NPIs" = "black",
+            "No NPIs" = "red",
+            "Strict NPIs" = "#00C5CD"
+          ),
+          guide = "none"
+        )
+        + scale_x_date(
+          limits = c(anchor_start, anchor_end),
+          date_breaks = "2 weeks",
+          date_labels = "%d %b %Y",
+          expand = c(0.01, 0)
+        )
+        + labs(
+          title = "Transmission rate for counterfactual scenarios",
+          y = "Transmission rate",
+          x = NULL,
+          tag = "A"
+        )
+        + theme_clean()
+        + theme(
+          axis.text.x = element_text(size = 22, angle = 45, hjust = 1),
+          axis.text.y = element_text(size = 30),
+          axis.title.y = element_text(size = 30, color = "black"),
+          legend.position = c(0.85, 0.5),
+          legend.justification = c(0.5, 0.5),
+          legend.direction = "vertical",
+          legend.box = "vertical",
+          legend.title = element_text(size = 25),
+          legend.text = element_text(size = 25),
+          legend.background = element_blank(),
+          plot.title = element_text(size = 30, hjust = 0.5, face = "plain"),
+          plot.background = element_blank(),
+          plot.tag = element_text(size = 35, face = "bold"),
+          plot.tag.position = c(0.01, 0.98)
+        )
+)
+png("../figures/transmission_rate.png", width = 5000, height = 2000, res = 300, bg = "white", type = "cairo")
+print(gg1)
 dev.off()

@@ -12,9 +12,9 @@ reporting_delay  <- TRUE
 # ------------------------------------------------------------
 # Vaccination inputs
 # ------------------------------------------------------------
-double_daily_vac <- (nl_vax 
-	|> filter(type == "numtotal_fully") 
-	|> mutate(days = as.integer(days)) 
+double_daily_vac <- (nl_vax
+	|> filter(type == "numtotal_fully")
+	|> mutate(days = as.integer(days))
 	|> arrange(days)
 )
 

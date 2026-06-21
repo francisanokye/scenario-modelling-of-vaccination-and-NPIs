@@ -9,12 +9,7 @@ base_beta <- rdsRead()
 
 new_beta <- base_beta
 
-new_beta[stepkeep:239] <- als4_constant_value
-
-# this is to check if we are changing correctly
-print(base_beta[148:239])
-print(new_beta[148:239])
-
+new_beta[stepkeep:242] <- als4_constant_value
 
 print(all.equal(base_beta,new_beta))
 
