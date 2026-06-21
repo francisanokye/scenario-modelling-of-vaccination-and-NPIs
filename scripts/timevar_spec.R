@@ -1,8 +1,7 @@
 library(macpan2)
-library(dplyr)
+library(tidyverse)
 library(zoo)
 library(shellpipes)
-library(tidyverse)
 
 loadEnvironments()
 
@@ -13,10 +12,11 @@ reporting_delay  <- TRUE
 # ------------------------------------------------------------
 # Vaccination inputs
 # ------------------------------------------------------------
-double_daily_vac <- nl_vax |>
-  dplyr::filter(type == "numtotal_fully") |>
-  dplyr::mutate(days = as.integer(days)) |>
-  dplyr::arrange(days)
+double_daily_vac <- (nl_vax 
+	|> filter(type == "numtotal_fully") 
+	|> mutate(days = as.integer(days)) 
+	|> arrange(days)
+)
 
 booster_daily_vac <- booster_inputs_df |>
   dplyr::filter(scenario == "Actual Boosters") |>

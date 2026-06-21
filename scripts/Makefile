@@ -18,7 +18,20 @@ Sources += $(wildcard *.R)
 sir.Rout: sir.R
 	$(pipeR)
 
+#####################################################################################################
+## Processing vaccination data
+#####################################################################################################
+
 vacdat.Rout: vacdat.R ../data/vaccination-coverage-map.csv 
+	$(pipeR)
+
+process_vac.Rout: process_vac.R ../data/vaccination-coverage-map.csv vacdat.rda
+	$(pipeR)
+
+vax_scenario_setup.Rout: vax_scenario_setup.R ../data/vaccination-coverage-map.csv 
+	$(pipeR)
+
+vax_actual_boosters.Rout: vax_actual_boosters.R vax_scenario_setup.rda
 	$(pipeR)
 
 params.Rout: params.R vacdat.rda 
@@ -39,7 +52,7 @@ fitsero.Rout: fitsero.R seroprevdata.rds ../data/raw_citf_data.csv params.rda
 calibrate.Rout: calibrate.R timevar_spec.rds seroprevdata.rds fitsero.rds params.rda
 	$(pipeR)
 
-calibrate_plots.Rout: calibrate_plots.R calibrate.rds seroprevdata.rds fitsero.rds
+calibrate_plots.Rout: calibrate_plots.R calibrate.rds seroprevdata.rds fitsero.rds vacdat.rda
 	$(pipeR)
 
 base_beta.Rout: base_beta.R calibrate.rds
@@ -50,8 +63,13 @@ beta_als4.Rout: beta_als4.R base_beta.rds
 
 policy_neutral.Rout: policy_neutral.R base_beta.rds
 	$(pipeR)
-	
+
+## Need to revisit later after figuring the vaccination stuff.
 control_reprod_numb.Rout: control_reprod_numb.R beta_als4.rds policy_neutral.rds seroprevdata.rds fitsero.rds params.rda calibrate.rds
+	$(pipeR)
+
+## Canada Vaccination data
+can_vacdat.Rout: can_vacdat.R ../data/vaccination-coverage-map.csv 
 	$(pipeR)
 
 ### Derive vaccination scenarios

@@ -2,30 +2,37 @@ library(macpan2)
 library(tidyverse);theme_set(theme_bw())
 library(shellpipes)
 
+loadEnvironments()
 
-offset0 <- 150
 upper_plot_time <- 300
+upper_date <- day0 + upper_plot_time
+
+housedat <- data.frame(date = as.Date("2022-01-11")
+	, value = 100000
+	, matrix = "cum_booster"
+)
 
 # simulate trajectories from posterior
 sims = (rdsRead("calibrate")
-        |> mp_trajectory_sd(conf.int = TRUE, back_transform = TRUE)
-        |> dplyr::filter(time >= offset0)
+	|> mp_trajectory_sd(conf.int = TRUE, back_transform = TRUE)
+#	|> filter(time >= offset0)
+	|> mutate(date = day0 + time)
 )
 
+serodat <- rdsRead("seroprevdata.rds") 
+fitsero <- rdsRead("fitsero.rds")
 
-# function to filter plotting time
-lim_dat = \(x) dplyr::filter(x, time <= upper_plot_time)
+print(head(serodat))
 
-# plot observed and fitted incidence
-trajs <- (ggplot()
-          + geom_point(aes(time, value), data = lim_dat(rdsRead("seroprevdata")))
-          + geom_point(aes(time, value), data = lim_dat(rdsRead("fitsero")))
-          + geom_line(aes(time, value), linewidth = 1, data = lim_dat(sims),color="red")
-          + geom_ribbon(aes(x = time, ymin = conf.low, ymax = conf.high), alpha = 0.4, data = lim_dat(sims))
-          + facet_wrap(~matrix, scales = "free")
-          + scale_y_continuous(name = "")
-          + scale_x_continuous(limits = c(offset0, upper_plot_time))
-          + theme_bw()
+print(head(fitsero))
+
+trajs <- (ggplot(sims, aes(date, value))
+	+ geom_line(linewidth = 1,color="red")
+	+ geom_point(data=serodat)
+	+ geom_point(data=fitsero)
+	+ geom_point(data = housedat,color="blue")
+	+ geom_ribbon(aes(ymin = conf.low, ymax = conf.high), alpha = 0.4)
+	+ facet_wrap(~matrix, scales = "free")
 )
 
 print(trajs)
