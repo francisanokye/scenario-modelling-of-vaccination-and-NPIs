@@ -7,7 +7,7 @@ library(patchwork)
 library(ggthemes)
 library(forcats)
 library(broom.mixed)
-# 
+
 # check macpan2 version
 if (packageVersion("macpan2") < "2.5.0") {
   stop(
@@ -24,7 +24,6 @@ loadEnvironments()
 conflicted::conflicts_prefer(dplyr::filter)
 
 spline_beta = TRUE
-# spline_beta = FALSE
 
 # load input data
 timevar_spec <- rdsRead("timevar_spec.rds")
@@ -35,16 +34,12 @@ calibdata = (fitsero
 	|> select(-date)
 	|> dplyr::filter(matrix == "newR")
 	|> mutate(matrix = "log_newR", value = log(value))
-#	|> filter(time > 153)
 )
-
-#print(calibdata)
 
 time_steps = max(seroprevdata$time)
 upper_plot_time = 300
 sim_horizon = 530
-## Are we calling date0 from other places? We need to be consistent with the dates
-date0 = as.Date("2021-12-15")
+omicron_start = as.Date("2021-12-15")
 
 # construct spline basis for beta(t)
 if (spline_beta) {
@@ -53,17 +48,15 @@ if (spline_beta) {
   X = splines::ns(1:basis_rows
                   , basis_cols
                   , intercept = TRUE
-                  , Boundary.knots = c(offset0, basis_rows)
+                  , Boundary.knots = c(offset, basis_rows)
   )
   timevar_spec = mp_tmb_insert_glm_timevar(timevar_spec
-                                           , parameter_name = "beta"
-                                           , design_matrix = X
-                                           , timevar_coef = rep(0, basis_cols)
-                                           , link_function = mp_log
+   , parameter_name = "beta"
+   , design_matrix = X
+   , timevar_coef = rep(0, basis_cols)
+   , link_function = mp_log
   )
 }
-
-## Do we really need this? Yes
 
 # prior constructor
 get_prior = function(trans) function(rng) {
@@ -75,12 +68,12 @@ get_prior = function(trans) function(rng) {
 
 # define priors
 priors = list(log_beta = mp_norm(log(0.25), log(1))
-              , time_var_beta = mp_norm(0, log(1))
-              , log_gamma_a = get_prior(log)(prior_range$gamma_a)
-              , log_gamma_i = get_prior(log)(prior_range$gamma_i)
-              , logit_kappa2 = get_prior(qlogis)(prior_range$kappa2)
-              , logit_kappa3 = get_prior(qlogis)(prior_range$kappa3)
-              , log_sigma = get_prior(log)(prior_range$sigma)
+  , time_var_beta = mp_norm(0, log(1))
+  , log_gamma_a = get_prior(log)(prior_range$gamma_a)
+  , log_gamma_i = get_prior(log)(prior_range$gamma_i)
+  , logit_kappa2 = get_prior(qlogis)(prior_range$kappa2)
+  , logit_kappa3 = get_prior(qlogis)(prior_range$kappa3)
+  , log_sigma = get_prior(log)(prior_range$sigma)
 )
 
 # fit model using seroprevalence data
@@ -90,7 +83,16 @@ calibrator = mp_tmb_calibrator(
   , time = mp_sim_bounds(1, time_steps)
   , traj = list(log_newR = mp_norm(sd = mp_fit(0.2)))
   , par = priors
-  , outputs = c("log_beta_thing", "log_inc", "log_newR","logit_serop_total", "cum_double_vac", "cum_booster","p1","p2","p3")
+  , outputs = c("log_beta_thing"
+                , "log_inc"
+                , "log_newR"
+                ,"logit_serop_total"
+                , "cum_double_vac"
+                , "cum_booster"
+                ,"p1"
+                ,"p2"
+                ,"p3"
+                )
 )
 
 # optimize fit

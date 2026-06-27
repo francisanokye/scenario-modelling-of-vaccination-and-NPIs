@@ -28,19 +28,22 @@ vacdat.Rout: vacdat.R ../data/vaccination-coverage-map.csv
 process_vac.Rout: process_vac.R ../data/vaccination-coverage-map.csv vacdat.rda
 	$(pipeR)
 
-vax_scenario_setup.Rout: vax_scenario_setup.R ../data/vaccination-coverage-map.csv 
+scenarios.Rout: scenarios.R  process_vac.rda
+	$(pipeR)
+	
+#vax_scenario_setup.Rout: vax_scenario_setup.R ../data/vaccination-coverage-map.csv 
+#	$(pipeR)
+
+vax_actual_boosters.Rout: vax_actual_boosters.R process_vac.rda #vax_scenario_setup.rda
 	$(pipeR)
 
-vax_actual_boosters.Rout: vax_actual_boosters.R vax_scenario_setup.rda
-	$(pipeR)
-
-params.Rout: params.R vacdat.rda 
+params.Rout: params.R process_vac.rda #vacdat.rda 
 	$(pipeR)
 
 flows.Rout: flows.R params.rda 
 	$(pipeR)
 
-timevar_spec.Rout: timevar_spec.R flows.rda vacdat.rda combine_vax_scenarios.rda params.rda process_vac.rda
+timevar_spec.Rout: timevar_spec.R flows.rda params.rda process_vac.rda # vacdat.rda combine_vax_scenarios.rda
 	$(pipeR)
 	
 seroprevdata.Rout: seroprevdata.R params.rda ../data/raw_citf_data.csv    
@@ -55,7 +58,7 @@ calibrate.Rout: calibrate.R timevar_spec.rds seroprevdata.rds fitsero.rds params
 calibrate_plots.Rout: calibrate_plots.R calibrate.rds seroprevdata.rds fitsero.rds vacdat.rda
 	$(pipeR)
 
-base_beta.Rout: base_beta.R calibrate.rds
+base_beta.Rout: base_beta.R calibrate.rds timevar_spec.rds
 	$(pipeR)
 
 beta_als4.Rout: beta_als4.R base_beta.rds
@@ -79,19 +82,16 @@ initial_can_rate.Rout: initial_can_rate.R ../data/vaccination-coverage-map.csv
 vax_scenario_setup.Rout: vax_scenario_setup.R ../data/vaccination-coverage-map.csv 
 	$(pipeR)
 
-vax_actual_boosters.Rout: vax_actual_boosters.R vax_scenario_setup.rda
+vax_early_boosters.Rout: vax_early_boosters.R process_vac.rda
 	$(pipeR)
 
-vax_early_boosters.Rout: vax_early_boosters.R vax_actual_boosters.rda vax_scenario_setup.rda
+vax_faster_rate.Rout: vax_faster_rate.R process_vac.rda 
 	$(pipeR)
 
-vax_faster_rate.Rout: vax_faster_rate.R vax_scenario_setup.rda
+vax_slower_rate.Rout: vax_slower_rate.R process_vac.rda
 	$(pipeR)
 
-vax_slower_rate.Rout: vax_slower_rate.R vax_scenario_setup.rda
-	$(pipeR)
-
-vax_national_rate.Rout: vax_national_rate.R initial_can_rate.rda vax_scenario_setup.rda ../data/vaccination-coverage-map.csv
+vax_national_rate.Rout: vax_national_rate.R ../data/vaccination-coverage-map.csv
 	$(pipeR)
 
 combine_vax_scenarios.Rout: combine_vax_scenarios.R vax_scenario_setup.rda vax_actual_boosters.rda vax_early_boosters.rda \
@@ -101,8 +101,8 @@ combine_vax_scenarios.Rout: combine_vax_scenarios.R vax_scenario_setup.rda vax_a
 	$(pipeR)	
 	
 ### Simulate trajectories for ALS policies and vaccination scenarios	
-generate_figure1.Rout: generate_figure1.R calibrate.rds base_beta.rds beta_als4.rds policy_neutral.rds \
-	fitsero.rds seroprevdata.rds params.rda combine_vax_scenarios.rda  ../data/serop_avgcase_data.csv params.rda
+generate_figure1.Rout: generate_figure1.R calibrate.rds base_beta.rds beta_als4.rds policy_neutral.rds vax_slower_rate.rda vax_faster_rate.rda vax_early_boosters.rda \
+	vax_national_rate.rda fitsero.rds seroprevdata.rds params.rda ../data/serop_avgcase_data.csv params.rda
 	$(pipeR)
 
 extract_booster_info.Rout: extract_booster_info.R calibrate.rds combine_vax_scenarios.rda 

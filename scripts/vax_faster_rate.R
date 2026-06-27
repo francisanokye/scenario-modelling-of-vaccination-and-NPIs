@@ -1,58 +1,62 @@
-suppressPackageStartupMessages({
-  library(dplyr)
-  library(tidyr)
-  library(lubridate)
-  library(shellpipes)
-})
+library(tidyverse)
+library(zoo)
+library(lubridate)
+library(shellpipes)
 
 loadEnvironments()
 
-scenario_name <- "Faster Boosters"
-speed_factor  <- 1.5
+offset <- 150
 
-# build the faster booster rollout
-daily_scenarios_df <- make_rollout_scenario(
-  daily_base,
-  speed          = speed_factor,
-  shift_days     = 0,
-  label          = scenario_name,
-  scenario_start = actual_booster_start
-) |>
-  mutate(
-    days_since_init = as.integer(date - init_date)
-  ) |>
-  filter(days_since_init >= 0)
+booster_start  <- as.Date("2021-11-08")
+burn_in_start  <- omicron_start - days(offset)
 
-# weekly curve for plotting
-scenario_weekly_df_faster <- daily_scenarios_df |>
-  group_by(scenario, week_end) |>
-  summarise(
-    weekly_rate = sum(daily_rate, na.rm = TRUE),
-    cum_val     = max(cum_val, na.rm = TRUE),
-    cum_prop    = max(cum_prop, na.rm = TRUE),
-    .groups     = "drop"
-  ) |>
-  mutate(is_star = FALSE) |>
-  arrange(week_end) |>
-  filter(week_end >= actual_booster_start + 1)
+booster_daily_vac <- boosterframe |>
+  arrange(date) |>
+  mutate(day = as.numeric(date - booster_start))
 
-# daily booster input for the model
-scenario_booster_inputs_df_faster <- daily_scenarios_df |>
-  transmute(
-    scenario,
-    date,
-    day               = as.integer(date - init_date),
-    booster_vac_value = as.numeric(daily_rate)
-  ) |>
-  arrange(scenario, day) |>
-  filter(date >= actual_booster_start + 1)
+start_date <- min(booster_daily_vac$date)
+max_historical_day <- max(booster_daily_vac$day)
 
-cat(sprintf(
-  "\n== Faster Boosters: final coverage = %.1f%% ==\n",
-  max(cumsum(scenario_booster_inputs_df_faster$booster_vac_value)) / NL_POP * 100
-))
+speed_up_factor  <- 1.5
+slow_down_factor <- 0.5
 
-saveVars(
-  scenario_weekly_df_faster,
-  scenario_booster_inputs_df_faster
+plot_times_main <- seq(0, ceiling(max_historical_day / speed_up_factor),by = 1)
+
+make_rate_fun <- function(day, rate) {
+  approxfun(
+    x = day,
+    y = rate,
+    method = "linear",
+    rule = 1,
+    yleft = 0,
+    yright = 0
+  )
+}
+
+fast_func <- make_rate_fun(booster_daily_vac$day / speed_up_factor, booster_daily_vac$daily_rate * speed_up_factor)
+
+results_list <- list()
+
+#####################################################################
+## Faster boosters: starts same date, finishes earlier
+#####################################################################
+
+faster_rates <- fast_func(plot_times_main)
+faster_rates[is.na(faster_rates)] <- 0
+faster_rates <- pmax(faster_rates, 0)
+
+results_list[["Faster Boosters"]] <- (tibble(
+  date = start_date + plot_times_main
+  , scenario = "Faster Boosters"
+  , daily_rate = faster_rates
+  )
 )
+
+vax_faster_rate <- (bind_rows(results_list) 
+  |> mutate(day = as.numeric(date - burn_in_start))
+  )
+
+# replace the first value 0.5 with 1
+vax_faster_rate$daily_rate[1] <- 1
+
+saveEnvironment()

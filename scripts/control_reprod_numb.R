@@ -24,12 +24,33 @@ seroprevdata   <- readRDS("seroprevdata.rds")
 
 beta_ALS4only  <- rdsRead("beta_als4")
 beta_noALS     <- rdsRead("policy_neutral")
+base_beta      <- rdsRead("base_beta")
 
 upper_plot_time <- 300
-offset0         <- 150
-anchor_start    <- as.Date("2021-12-15")
-anchor_end      <- as.Date("2022-05-22")
-cut_date        <- as.Date("2022-03-15")
+
+# offset/omicron_start/burn_in_start/last_date match the same-named
+# variables used throughout the pipeline (vacdat.R, process_vac.R,
+# timevar_spec.R, seroprevdata.R, fitsero.R, calibrate.R,
+# generate_figure1.R, policy_neutral.R, beta_als4.R). time is
+# macpan2's 1-indexed simulation clock with time=1 == burn_in_start,
+# so time_at(omicron_start) = offset + 1, not offset.
+offset          <- 150
+omicron_start   <- as.Date("2021-12-15")
+burn_in_start   <- omicron_start - offset
+last_date       <- as.Date("2022-05-22")
+# intervention_removed matches the same-named variable in
+# policy_neutral.R, beta_als4.R, and generate_figure1.R.
+intervention_removed <- as.Date("2022-03-14")
+
+# Time indices for omicron_start and last_date, used below to slice
+# beta_noALS/beta_ALS4only (each of length sim_horizon, e.g. 530) down
+# to the same time range as baseRc (which is filtered to
+# omicron_start..last_date). This replaces the previous
+# beta_noALS[-c(1:(offset0-1))] one-sided slice, which trimmed the
+# start but never trimmed the end, producing a length mismatch against
+# baseRc (e.g. 381 vs 159 rows).
+time_omicron_start <- as.numeric(omicron_start - burn_in_start) + 1
+time_last_date     <- as.numeric(last_date     - burn_in_start) + 1
 
 # ---- model constants ----
 kappa1 <- params[["kappa1"]]
@@ -46,60 +67,137 @@ bracket_term <- (mu / gamma_i) + ((1 - mu) * zeta / gamma_a)
 
 # ---- time-varying vaccination-cohort proportions ----
 baseRc <- (mp_trajectory_sd(calibrator,conf.int=TRUE, back_transform=TRUE) 
-	|>filter(matrix %in% c("p1", "p2", "p3","beta_thing")
-		, time >= offset0
-		) 
-  	|> select(time, matrix, value, conf.low,conf.high) 
-  	|> pivot_longer(-c(time,matrix),names_to = "est", values_to = "value")
-  	|> transmute(NULL
-  		, time 
-		, vartype = paste0(matrix,"_",est)
-		, value
-	)
-  	|> pivot_wider(names_from = vartype, values_from = value)
-  	|> transmute(NULL
-		, date = anchor_start + time -offset0  
-	 	, beta = beta_thing_value
-		, beta_lwr = beta_thing_conf.low
-		, beta_upr = beta_thing_conf.high
-		, p1 = p1_value
-		, p2 = p2_value
-		, p3 = p3_value
-#		, susceptibility = p1 * kappa1 + p2 * kappa2 + p3 * kappa3
-  	, susceptibility = 0.15 * kappa1 + 0.85 * kappa2 + 0 * kappa3
-		, psum = p1 + p2 + p3
-		, mult_t = bracket_term * susceptibility
-		, Rc = beta*mult_t
-		, Rc_lwr = beta_lwr * mult_t
-		, Rc_upr = beta_upr * mult_t
-  		) 
-	|> filter(date >= anchor_start, date <= anchor_end) 
+           |>filter(matrix %in% c("p1", "p2", "p3","beta_thing")
+                    , time >= time_omicron_start
+           ) 
+           |> select(time, matrix, value, conf.low,conf.high) 
+           |> pivot_longer(-c(time,matrix),names_to = "est", values_to = "value")
+           |> transmute(NULL
+                        , time 
+                        , vartype = paste0(matrix,"_",est)
+                        , value
+           )
+           |> pivot_wider(names_from = vartype, values_from = value)
+           |> transmute(NULL
+                        , date = burn_in_start + (time - 1)
+                        , beta = beta_thing_value
+                        , beta_lwr = beta_thing_conf.low
+                        , beta_upr = beta_thing_conf.high
+                        , p1 = p1_value
+                        , p2 = p2_value
+                        , p3 = p3_value
+                        #		, susceptibility = p1 * kappa1 + p2 * kappa2 + p3 * kappa3
+                        , susceptibility = 0.15 * kappa1 + 0.85 * kappa2 + 0 * kappa3
+                        , psum = p1 + p2 + p3
+                        , mult_t = bracket_term * susceptibility
+                        , Rc = beta*mult_t
+                        , Rc_lwr = beta_lwr * mult_t
+                        , Rc_upr = beta_upr * mult_t
+           ) 
+           |> filter(date >= omicron_start, date <= last_date) 
 )
+
+# Verification: base_beta.R extracts the calibrated beta trajectory
+# via mp_optimized_spec()+mp_simulator()+mp_trajectory(), while baseRc
+# above extracts it via mp_trajectory_sd(calibrator, ...) directly.
+# These are two different extraction paths off the same fitted
+# calibrator -- compare them at matching dates (using the same
+# time=1 == burn_in_start indexing both are assumed to share) to
+# confirm they agree before relying on cutoff_time (computed against
+# base_beta's indexing) to truncate baseRc$beta (computed via the
+# other path). NOTE: base_beta already holds the constant 0.3675 from
+# cutoff_time onward (see base_beta.R), so only compare BEFORE
+# cutoff_date -- a difference after that date is expected, not a bug.
+cutoff_time_check <- 232
+cutoff_date_check <- burn_in_start + (cutoff_time_check - 1)
+base_beta_dates <- burn_in_start + (seq_along(base_beta) - 1)
+base_beta_df <- data.frame(date = base_beta_dates, base_beta_value = base_beta)
+verify_alignment <- (baseRc
+                     |> select(date, beta) 
+                     |> inner_join(base_beta_df, by = "date")
+                     |> mutate(diff = beta - base_beta_value)
+                     |> filter(date < cutoff_date_check)
+)
+cat("Alignment check between base_beta and baseRc$beta, BEFORE cutoff_date only\n")
+cat("(a difference after cutoff_date is expected since base_beta already holds the constant there):\n")
+print(head(verify_alignment, 10))
+cat("Max absolute difference before cutoff:", max(abs(verify_alignment$diff), na.rm = TRUE), "\n\n")
+
+# Truncate "Actual NPIs" (baseRc$beta) at cutoff_time, matching
+# base_beta.R exactly: cutoff_time (232, == 2022-03-06 under the
+# burn_in_start convention) is the time index where new_constant_value
+# (0.3675) best aligns with the calibrated beta trajectory's peak --
+# a curve-matching choice, not intervention_removed (2022-03-14).
+# Replace beta/beta_lwr/beta_upr with new_constant_value from
+# cutoff_time onward, and recompute Rc/Rc_lwr/Rc_upr from the replaced
+# beta so they stay consistent with each other.
+new_constant_value <- 0.3675
+cutoff_time <- 232
+cutoff_date <- burn_in_start + (cutoff_time - 1)
+past_cutoff <- baseRc$date >= cutoff_date
+
+baseRc$beta[past_cutoff]     <- new_constant_value
+baseRc$beta_lwr[past_cutoff] <- new_constant_value
+baseRc$beta_upr[past_cutoff] <- new_constant_value
+
+baseRc$Rc[past_cutoff]     <- baseRc$beta[past_cutoff]     * baseRc$mult_t[past_cutoff]
+baseRc$Rc_lwr[past_cutoff] <- baseRc$beta_lwr[past_cutoff] * baseRc$mult_t[past_cutoff]
+baseRc$Rc_upr[past_cutoff] <- baseRc$beta_upr[past_cutoff] * baseRc$mult_t[past_cutoff]
+
+# verification: print dates around the cutoff so the truncation point
+# can be visually confirmed.
+print(baseRc[baseRc$date >= cutoff_date - 5 & baseRc$date <= cutoff_date + 5,
+             c("date", "beta", "Rc")])
 
 print(dim(baseRc))
 
-newRc <- function(beta_vec,scenario){
-	Rcdat <- (baseRc
-		|> select(date,beta,Rc,Rc_lwr,Rc_upr)
-		|> mutate(beta_ratio = beta_vec/beta
-			, new_beta = beta_ratio* beta
-			, Rc = beta_ratio * Rc
-			, Rc_lwr = beta_ratio * Rc_lwr
-			, Rc_upr = beta_ratio * Rc_upr
-			, scenario = scenario
-		)
-	)
+# beta_noALS/beta_ALS4only are plain numeric vectors indexed by
+# simulation time (position t == time t, length sim_horizon, e.g.
+# 530). Tag each with its date (using the same burn_in_start + (time-1)
+# convention as baseRc) and join on date rather than relying on
+# positional vector recycling, so newRc() is robust even if baseRc's
+# actual row count doesn't exactly match the naive
+# [time_omicron_start:time_last_date] slice length (e.g. due to a gap
+# in the calibrator's fitted trajectory).
+beta_vec_to_df <- function(beta_vec) {
+  tibble(
+    time = seq_along(beta_vec),
+    date = burn_in_start + (time - 1),
+    beta_scenario = beta_vec
+  )
 }
 
+newRc <- function(beta_vec,scenario){
+  beta_df <- beta_vec_to_df(beta_vec)
+  Rcdat <- (baseRc
+            |> select(date,beta,Rc,Rc_lwr,Rc_upr)
+            |> inner_join(beta_df |> select(date, beta_scenario), by = "date")
+            |> mutate(beta_ratio = beta_scenario/beta
+                      , new_beta = beta_ratio* beta
+                      , Rc = beta_ratio * Rc
+                      , Rc_lwr = beta_ratio * Rc_lwr
+                      , Rc_upr = beta_ratio * Rc_upr
+                      , scenario = scenario
+            )
+            |> select(-beta_scenario)
+  )
+  if (nrow(Rcdat) != nrow(baseRc)) {
+    warning(sprintf(
+      "newRc('%s'): joined %d of %d baseRc rows -- %d date(s) in baseRc had no matching entry in beta_vec.",
+      scenario, nrow(Rcdat), nrow(baseRc), nrow(baseRc) - nrow(Rcdat)
+    ))
+  }
+  Rcdat
+}
 
-noALS_Rc <- newRc(beta_noALS[-c(1:(offset0-1))],scenario="noALS")
-ALS4only_Rc <- newRc(beta_ALS4only[-c(1:(offset0-1))],scenario="strict")
+noALS_Rc <- newRc(beta_noALS,scenario="noALS")
+ALS4only_Rc <- newRc(beta_ALS4only,scenario="strict")
 
 comboRc <- (baseRc
-	|> select(date,Rc,Rc_lwr,Rc_upr)
-	|> mutate(scenario = "base")
-	|> bind_rows(noALS_Rc)
-	|> bind_rows(ALS4only_Rc)
+            |> select(date,Rc,Rc_lwr,Rc_upr)
+            |> mutate(scenario = "base")
+            |> bind_rows(noALS_Rc)
+            |> bind_rows(ALS4only_Rc)
 )
 
 print(comboRc)
@@ -121,7 +219,7 @@ gg <- (ggplot(comboRc, aes(date, Rc, color = scenario, fill = scenario))
        + geom_line(linewidth = 2)
        + geom_hline(yintercept = 1, linetype = "dashed", linewidth = 1.2)
        + geom_vline(
-         xintercept = cut_date,
+         xintercept = intervention_removed,
          linetype = "dashed",
          linewidth = 3
        )
@@ -138,7 +236,7 @@ gg <- (ggplot(comboRc, aes(date, Rc, color = scenario, fill = scenario))
          labels = scenario_labels
        )
        + scale_x_date(
-         limits = c(anchor_start, anchor_end),
+         limits = c(omicron_start, last_date),
          date_breaks = "2 weeks",
          date_labels = "%d %b %Y",
          expand = c(0.01, 0)
@@ -173,22 +271,39 @@ print(gg)
 dev.off()
 
 
-gg1 <- (ggplot(baseRc, aes(date, beta))
+# Join baseRc with both beta-scenario series by date (same approach as
+# newRc() above), so gg1's geom_line(aes(y = ...)) references named
+# columns instead of indexing separate vectors positionally -- which
+# previously required beta_noALS/beta_ALS4only to be sliced to exactly
+# baseRc's row count.
+baseRc_with_scenarios <- (baseRc
+                          |> inner_join(beta_vec_to_df(beta_noALS)    |> select(date, beta_noALS_value = beta_scenario), by = "date")
+                          |> inner_join(beta_vec_to_df(beta_ALS4only) |> select(date, beta_ALS4only_value = beta_scenario), by = "date")
+)
+
+if (nrow(baseRc_with_scenarios) != nrow(baseRc)) {
+  warning(sprintf(
+    "baseRc_with_scenarios: joined %d of %d baseRc rows -- %d date(s) had no matching entry in beta_noALS/beta_ALS4only.",
+    nrow(baseRc_with_scenarios), nrow(baseRc), nrow(baseRc) - nrow(baseRc_with_scenarios)
+  ))
+}
+
+gg1 <- (ggplot(baseRc_with_scenarios, aes(date, beta))
         + geom_ribbon(
           aes(ymin = beta_lwr, ymax = beta_upr, fill = "Actual NPIs"),
           alpha = 0.2, colour = NA
         )
         + geom_line(aes(colour = "Actual NPIs"), linewidth = 2)
         + geom_line(
-          aes(y = beta_noALS[-c(1:(offset0 - 1))], colour = "No NPIs"),
+          aes(y = beta_noALS_value, colour = "No NPIs"),
           linewidth = 2
         )
         + geom_line(
-          aes(y = beta_ALS4only[-c(1:(offset0 - 1))], colour = "Strict NPIs"),
+          aes(y = beta_ALS4only_value, colour = "Strict NPIs"),
           linewidth = 2
         )
         + geom_vline(
-          xintercept = cut_date,
+          xintercept = intervention_removed,
           linetype = "dashed",
           linewidth = 3
         )
@@ -212,7 +327,7 @@ gg1 <- (ggplot(baseRc, aes(date, beta))
           guide = "none"
         )
         + scale_x_date(
-          limits = c(anchor_start, anchor_end),
+          limits = c(omicron_start, last_date),
           date_breaks = "2 weeks",
           date_labels = "%d %b %Y",
           expand = c(0.01, 0)

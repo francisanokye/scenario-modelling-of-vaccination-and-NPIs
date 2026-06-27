@@ -1,95 +1,64 @@
-suppressPackageStartupMessages({
-  library(dplyr)
-  library(tidyr)
-  library(lubridate)
-  library(shellpipes)
-})
+library(tidyverse)
+library(zoo)
+library(lubridate)
+library(shellpipes)
 
 loadEnvironments()
 
-scenario_name <- "Early Boosters"
+offset <- 150
 
-# move the actual booster curve earlier
-advance_days <- as.integer(actual_booster_start - early_start_date)
+booster_start  <- as.Date("2021-11-08")
+burn_in_start  <- omicron_start - days(offset)
 
-actual_cum_fun <- approxfun(
-  x      = as.numeric(daily_base$date),
-  y      = daily_base$cum_value,
-  method = "linear",
-  rule   = 2,
-  ties   = "ordered"
+booster_daily_vac <- (
+  boosterframe 
+  |> arrange(date) 
+  |> mutate(day = as.numeric(date - booster_start))
 )
 
-early_cum_raw <- actual_cum_fun(as.numeric(daily_base$date) + advance_days)
-early_cum_raw <- ifelse(daily_base$date < early_start_date, 0, early_cum_raw)
-early_cum_raw <- pmax(early_cum_raw, 0)
-early_cum_raw <- pmin(early_cum_raw, eligible_pop_NL)
-early_cum_raw <- cummax(early_cum_raw)
+start_date <- min(booster_daily_vac$date)
+max_historical_day <- max(booster_daily_vac$day)
 
-# daily early-booster curve
-daily_base_early <- daily_base |>
-  mutate(
-    cum_value = early_cum_raw,
-    daily_inc = pmax(cum_value - lag(cum_value, default = 0), 0),
-    week_end  = ceiling_date(date, unit = "week", week_start = 7) - days(1)
-  ) |>
-  group_by(week_end) |>
-  mutate(
-    weekly_rate = sum(daily_inc, na.rm = TRUE)
-  ) |>
-  ungroup()
+days_earlier     <- 35
+slow_down_factor <- 0.5
 
-daily_scenarios_df <- daily_base_early |>
-  mutate(
-    cum_val         = cum_value,
-    daily_rate      = daily_inc,
-    cum_prop        = clip01(cum_value / NL_POP),
-    scenario        = scenario_name,
-    days_since_init = as.integer(date - init_date)
-  ) |>
-  filter(days_since_init >= 0)
+plot_times_early <- seq(-days_earlier, max_historical_day - days_earlier, by = 1)
 
-# weekly curve for plotting
-scenario_weekly_df_early <- daily_scenarios_df |>
-  group_by(scenario, week_end) |>
-  summarise(
-    weekly_rate = sum(daily_rate, na.rm = TRUE),
-    cum_val     = max(cum_val, na.rm = TRUE),
-    cum_prop    = max(cum_prop, na.rm = TRUE),
-    .groups     = "drop"
-  ) |>
-  mutate(is_star = FALSE) |>
-  arrange(week_end) |>
-  filter(week_end >= early_start_date)
+plot_times_main <- seq(0, ceiling(max_historical_day / slow_down_factor),by = 1)
 
-# daily booster input for the model
-scenario_booster_inputs_df_early <- daily_scenarios_df |>
-  transmute(
-    scenario,
-    date,
-    day               = as.integer(date - init_date),
-    booster_vac_value = as.numeric(daily_rate)
-  ) |>
-  arrange(scenario, day) |>
-  filter(day >= 0, date >= early_start_date)
+make_rate_fun <- function(day, rate) {
+  approxfun(
+    x = day,
+    y = rate,
+    method = "linear",
+    rule = 1,
+    yleft = 0,
+    yright = 0
+  )
+}
 
-# check final coverage
-final_cum <- max(cumsum(scenario_booster_inputs_df_early$booster_vac_value))
+early_func <- make_rate_fun(booster_daily_vac$day - days_earlier, booster_daily_vac$daily_rate)
 
-cat(sprintf("\n== Early Boosters validation ==\n"))
-cat(sprintf("  advance_days:       %d\n", advance_days))
-cat(sprintf(
-  "  eligible_pop_NL:    %d  (%.1f%%)\n",
-  eligible_pop_NL,
-  eligible_pop_NL / NL_POP * 100
-))
-cat(sprintf(
-  "  Final coverage:     %.0f  (%.1f%%)\n",
-  final_cum,
-  final_cum / NL_POP * 100
-))
+results_list <- list()
 
-saveVars(
-  scenario_weekly_df_early,
-  scenario_booster_inputs_df_early
+#####################################################################
+## Early boosters: starts before actual rollout
+#####################################################################
+
+early_rates <- early_func(plot_times_early)
+early_rates[is.na(early_rates)] <- 0
+early_rates <- pmax(early_rates, 0)
+
+results_list[["Early Boosters"]] <- (tibble(
+  date = start_date + plot_times_early
+  , scenario = "Early Boosters"
+  , daily_rate = early_rates
+  )
+  )
+
+vax_early_rate <- (
+  bind_rows(results_list) 
+  |> mutate(day = as.numeric(date - burn_in_start))
 )
+
+saveEnvironment()

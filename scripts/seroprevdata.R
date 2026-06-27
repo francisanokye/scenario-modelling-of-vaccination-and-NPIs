@@ -7,9 +7,10 @@ library(tidyverse)
 # load saved environments
 loadEnvironments()
 
-# define study period
-start_date <- "2021-12-15"
-last_date  <- "2022-05-22" 
+offset <- 150
+
+omicron_start <- "2021-12-15"
+analysis_end  <- "2022-05-22" 
 
 # read and format seroprevalence data
 seroprevalence <- csvRead()
@@ -27,11 +28,11 @@ print(seroprevalence)
 serodat <- (seroprevalence 
             |>transmute(NULL
                         , date
-                        , time = as.numeric(date - as.Date(start_date)) + 1 + offset0
+                        , time = as.numeric(date - as.Date(omicron_start)) + 1 + offset
                         , matrix = "serop_total"
                         , value  = pct_mean
             ) 
-            |> filter(between(date, as.Date(start_date), as.Date(last_date)))
+            |> filter(between(date, as.Date(omicron_start), as.Date(analysis_end)))
 )
 
 print(serodat)

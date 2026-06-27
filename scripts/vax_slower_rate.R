@@ -1,53 +1,64 @@
-suppressPackageStartupMessages({
-  library(dplyr)
-  library(tidyr)
-  library(lubridate)
-  library(shellpipes)
-})
+
+library(tidyverse)
+library(zoo)
+library(lubridate)
+library(shellpipes)
 
 loadEnvironments()
 
-scenario_name <- "Slower Boosters"
-speed_factor  <- 0.5
+offset <- 150
 
-# build the slower booster rollout
-daily_scenarios_df <- make_rollout_scenario(
-  daily_base,
-  speed          = speed_factor,
-  shift_days     = 0,
-  label          = scenario_name,
-  scenario_start = actual_booster_start
-) |>
-  mutate(
-    days_since_init = as.integer(date - init_date)
-  ) |>
-  filter(days_since_init >= 0)
+booster_start  <- as.Date("2021-11-08")
+burn_in_start  <- omicron_start - days(offset)
 
-# weekly curve for plotting
-scenario_weekly_df_slower <- daily_scenarios_df |>
-  group_by(scenario, week_end) |>
-  summarise(
-    weekly_rate = sum(daily_rate, na.rm = TRUE),
-    cum_val     = max(cum_val, na.rm = TRUE),
-    cum_prop    = max(cum_prop, na.rm = TRUE),
-    .groups     = "drop"
-  ) |>
-  mutate(is_star = FALSE) |>
-  arrange(week_end) |>
-  filter(week_end >= actual_booster_start + 1)
+booster_daily_vac <- boosterframe |>
+  arrange(date) |>
+  mutate(day = as.numeric(date - booster_start))
 
-# daily booster input for the model
-scenario_booster_inputs_df_slower <- daily_scenarios_df |>
-  transmute(
-    scenario,
-    date,
-    day               = as.integer(date - init_date),
-    booster_vac_value = as.numeric(daily_rate)
-  ) |>
-  arrange(scenario, day) |>
-  filter(date >= actual_booster_start + 1)
+start_date <- min(booster_daily_vac$date)
+max_historical_day <- max(booster_daily_vac$day)
 
-saveVars(
-  scenario_weekly_df_slower,
-  scenario_booster_inputs_df_slower
-)
+slow_down_factor <- 0.5
+
+plot_times_main <- seq(0, ceiling(max_historical_day / slow_down_factor), by = 1)
+
+make_rate_fun <- function(day, rate) {
+  approxfun(
+    x = day,
+    y = rate,
+    method = "linear",
+    rule = 1,
+    yleft = 0,
+    yright = 0
+  )
+}
+
+slow_func <- make_rate_fun(booster_daily_vac$day / slow_down_factor, booster_daily_vac$daily_rate * slow_down_factor)
+
+results_list <- list()
+
+#####################################################################
+## Slower boosters: starts same date, finishes later
+#####################################################################
+
+slower_rates <- slow_func(plot_times_main)
+slower_rates[is.na(slower_rates)] <- 0
+slower_rates <- pmax(slower_rates, 0)
+
+results_list[["Slower Boosters"]] <- tibble(
+  date = start_date + plot_times_main
+  , scenario = "Slower Boosters"
+  , daily_rate = slower_rates
+  )
+
+vax_slower_rate <- (bind_rows(results_list) 
+                    |> mutate(day = as.numeric(date - burn_in_start))
+                    )
+# replace the first value 0.5 with 1
+vax_slower_rate$daily_rate[1] <- 1
+
+
+print(vax_slower_rate)
+
+saveEnvironment()
+

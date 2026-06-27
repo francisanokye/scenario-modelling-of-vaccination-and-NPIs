@@ -1,33 +1,32 @@
 library(macpan2)
 library(tidyverse)
 library(zoo)
+library(lubridate)
 library(shellpipes)
 
 loadEnvironments()
 
 # ============================================================
-init_date        <- as.Date("2021-07-24")
+offset <- 150
+
 reporting_delay  <- TRUE
+omicron_start  <- as.Date("2021-12-15")
+analysis_end   <- as.Date("2022-05-22")
+
+burn_in_start    <- omicron_start - days(offset)
 
 # ------------------------------------------------------------
 # Vaccination inputs
 # ------------------------------------------------------------
-double_daily_vac <- (nl_vax
-	|> filter(type == "numtotal_fully")
-	|> mutate(days = as.integer(days))
-	|> arrange(days)
-)
 
-booster_daily_vac <- booster_inputs_df |>
-  dplyr::filter(scenario == "Actual Boosters") |>
-  dplyr::transmute(days = as.integer(day), daily_rate = as.numeric(booster_vac_value)) |>
-  dplyr::arrange(days) |>
-  dplyr::group_by(days) |>
-  dplyr::summarise(
-    daily_rate = sum(daily_rate, na.rm = TRUE),
-    .groups    = "drop"
+double_daily_vac <- (doublevaxframe 
+  |> mutate(day = as.numeric(date - burn_in_start))
   )
 
+booster_daily_vac <- (boosterframe 
+  |> mutate(day = as.numeric(date - burn_in_start))
+)
+                      
 # ------------------------------------------------------------
 # Initial state
 # ------------------------------------------------------------
@@ -55,10 +54,10 @@ spec <- mp_tmb_model_spec(
 # ------------------------------------------------------------
 # Time-varying vaccination rates
 # ------------------------------------------------------------
-double_vac_changepoints  <- as.integer(double_daily_vac$days)
+double_vac_changepoints  <- as.integer(double_daily_vac$day)
 double_vac_values        <- as.numeric(double_daily_vac$daily_rate)
 
-booster_vac_changepoints <- as.integer(booster_daily_vac$days)
+booster_vac_changepoints <- as.integer(booster_daily_vac$day)
 booster_vac_values       <- as.numeric(booster_daily_vac$daily_rate)
 
 if (!any(double_vac_changepoints == 0)) {

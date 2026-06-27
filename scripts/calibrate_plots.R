@@ -4,11 +4,14 @@ library(shellpipes)
 
 loadEnvironments()
 
+NL_POP <- 510550
 upper_plot_time <- 300
-upper_date <- day0 + upper_plot_time
+omicron_start  <- as.Date("2021-12-15")
+burn_in_start  <- omicron_start - lubridate::days(150)
+upper_date <- burn_in_start + upper_plot_time
 
 housedat <- data.frame(date = as.Date("2022-01-11")
-	, value = 100000
+	, value = NL_POP * 0.209
 	, matrix = "cum_booster"
 )
 
@@ -16,7 +19,7 @@ housedat <- data.frame(date = as.Date("2022-01-11")
 sims = (rdsRead("calibrate")
 	|> mp_trajectory_sd(conf.int = TRUE, back_transform = TRUE)
 #	|> filter(time >= offset0)
-	|> mutate(date = day0 + time)
+	|> mutate(date = burn_in_start + (time - 1))
 )
 
 serodat <- rdsRead("seroprevdata.rds") 

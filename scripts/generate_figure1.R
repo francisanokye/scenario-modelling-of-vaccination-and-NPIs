@@ -27,13 +27,14 @@ NL_POP       <- 510550
 CA_PRIMARY_ONLY_PROP_START <- 0.750
 new_V2_init <- NA_real_
 
-analysis_start <- as.Date("2021-12-15")
-init_date      <- analysis_start - offset
-release_date   <- as.Date("2022-03-17")
-analysis_end   <- init_date + sim_horizon - 1L
+omicron_start  <- as.Date("2021-12-15")
+burn_in_start  <- omicron_start - offset
 
-actual_booster_start <- as.Date("2021-11-08")
-early_start_date     <- as.Date("2021-10-04")
+intervention_removed <- as.Date("2022-03-14")
+# analysis_end   <- burn_in_start + sim_horizon - 1L
+
+booster_start    <- as.Date("2021-11-08")
+early_start_date <- as.Date("2021-10-04")
 
 fig_dir <- "../figures"
 dir.create(fig_dir, recursive = TRUE, showWarnings = FALSE)
@@ -51,7 +52,7 @@ max_or_na <- function(x) {
   max(x)
 }
 
-sanitize_tag <- function(x) {
+panel_tag <- function(x) {
   x <- gsub("[^A-Za-z0-9]+", "_", x)
   x <- gsub("_+", "_", x)
   gsub("^_|_$", "", x)
@@ -62,13 +63,6 @@ calibrator <- rdsRead("calibrate")
 padded_beta_noals <- rdsRead("policy_neutral")
 padded_beta_base  <- rdsRead("base_beta")
 padded_beta_als4  <- rdsRead("beta_als4")
-
-stopifnot(
-  init_date + offset == analysis_start,
-  length(padded_beta_noals) == length(padded_beta_base),
-  length(padded_beta_als4)  == length(padded_beta_base),
-  exists("booster_inputs_df")
-)
 
 scenario_cols <- c(
   "National Rate"   = "springgreen3",
@@ -86,102 +80,83 @@ scenario_dose_cols <- list(
 )
 
 booster_start_dates <- c(
-  "Actual Boosters" = actual_booster_start,
+  "Actual Boosters" = booster_start,
   "Early Boosters"  = early_start_date,
-  "Faster Boosters" = actual_booster_start,
-  "Slower Boosters" = actual_booster_start,
-  "National Rate"   = actual_booster_start
+  "Faster Boosters" = booster_start,
+  "Slower Boosters" = booster_start,
+  "National Rate"   = booster_start
 )
 
-generate_scenario_boosters <- function(scenario_name, start_date) {
-  
-  scenario_daily <- booster_inputs_df |>
-    filter(
-      scenario == scenario_name,
-      date     >= start_date
-    ) |>
-    arrange(day)
-  
-  if (nrow(scenario_daily) == 0) {
-    stop("No booster input rows found for scenario: ", scenario_name)
-  }
-  
-  changepoints <- scenario_daily$day
-  vac_values   <- scenario_daily$booster_vac_value
-  
-  if (!any(changepoints == 0)) {
-    changepoints <- c(0L, changepoints)
-    vac_values   <- c(0,  vac_values)
-  }
-  
-  list(
-    changepoints = as.integer(changepoints),
-    vac_values   = as.numeric(vac_values)
-  )
+############# actual boosters ##############################
+
+spec_actual <- mp_optimized_spec(calibrator, "modified")
+
+############# set slower booster ##############################
+slower_booster_changepoints <- as.integer(vax_slower_rate$day)
+slower_booster_values       <- as.numeric(vax_slower_rate$daily_rate)
+
+if (!any(slower_booster_changepoints == 0)) {
+  slower_booster_changepoints <- c(0L, slower_booster_changepoints)
+  slower_booster_values       <- c(0,  slower_booster_values)
 }
 
-set_booster_vax <- function(booster_days, booster_vals) {
-  stopifnot(length(booster_days) == length(booster_vals))
-  stopifnot(all(diff(booster_days) >= 0))
-  
-  spec <- mp_optimized_spec(calibrator, "modified")
-  spec$integers$booster_vac_changepoints <- as.integer(booster_days)
-  spec$default$booster_vac_values        <- as.numeric(booster_vals)
-  spec
+spec_slower <- mp_optimized_spec(calibrator, "modified")
+spec_slower$integers$booster_vac_changepoints <- as.integer(slower_booster_changepoints)
+spec_slower$default$booster_vac_values        <- as.numeric(slower_booster_values)
+
+############# set faster booster ##############################
+faster_booster_changepoints <- as.integer(vax_faster_rate$day)
+faster_booster_values       <- as.numeric(vax_faster_rate$daily_rate)
+
+if (!any(faster_booster_changepoints == 0)) {
+  faster_booster_changepoints <- c(0L, faster_booster_changepoints)
+  faster_booster_values       <- c(0,  faster_booster_values)
 }
+
+spec_faster <- mp_optimized_spec(calibrator, "modified")
+spec_faster$integers$booster_vac_changepoints <- as.integer(faster_booster_changepoints)
+spec_faster$default$booster_vac_values        <- as.numeric(faster_booster_values)
+
+############# set early booster ##############################
+early_booster_changepoints <- as.integer(vax_early_rate$day)
+early_booster_values       <- as.numeric(vax_early_rate$daily_rate)
+
+if (!any(early_booster_changepoints == 0)) {
+  early_booster_changepoints <- c(0L, early_booster_changepoints)
+  early_booster_values       <- c(0,  early_booster_values)
+}
+
+spec_early <- mp_optimized_spec(calibrator, "modified")
+spec_early$integers$booster_vac_changepoints <- as.integer(early_booster_changepoints)
+spec_early$default$booster_vac_values        <- as.numeric(early_booster_values)
+
+############# set National-NL booster ##############################
+national_booster_changepoints <- as.integer(can_boosterframe$day)
+national_booster_values       <- as.numeric(can_boosterframe$daily_rate)
+
+if (!any(national_booster_changepoints == 0)) {
+  national_booster_changepoints <- c(0L, national_booster_changepoints)
+  national_booster_values       <- c(0,  national_booster_values)
+}
+
+spec_natl <- mp_optimized_spec(calibrator, "modified")
+spec_natl$integers$booster_vac_changepoints <- as.integer(national_booster_changepoints)
+spec_natl$default$booster_vac_values        <- as.numeric(national_booster_values)
+
+# insert new natioanl initial vaccinated
+spec_natl <- (spec_natl |>
+  mp_tmb_insert(default = list(V2_init = new_V2_init))
+  )
+
+############# update the betas ##############################
 
 update_vax_spec_beta <- function(spec, new_beta) {
   stopifnot(length(new_beta) == spec$default$time_steps)
   
   spec |>
     mp_tmb_delete(phase = "before", at = 26L) |>
-    mp_tmb_delete(phase = "before", at = 26L) |>
     mp_tmb_insert(default = list(timeseries_beta = new_beta))
 }
-
-spec_actual <- generate_scenario_boosters("Actual Boosters", actual_booster_start) |>
-  with(set_booster_vax(changepoints, vac_values))
-
-spec_early <- generate_scenario_boosters("Early Boosters", early_start_date) |>
-  with(set_booster_vax(changepoints, vac_values))
-
-spec_faster <- generate_scenario_boosters("Faster Boosters", actual_booster_start) |>
-  with(set_booster_vax(changepoints, vac_values))
-
-spec_slower <- generate_scenario_boosters("Slower Boosters", actual_booster_start) |>
-  with(set_booster_vax(changepoints, vac_values))
-
-calibrate_national_V2_init <- function(target_prop = CA_PRIMARY_ONLY_PROP_START) {
-  
-  natl_boosters <- generate_scenario_boosters("National Rate", actual_booster_start)
-  
-  get_prop <- function(v2_init_candidate) {
-    spec_i <- set_booster_vax(
-      natl_boosters$changepoints,
-      natl_boosters$vac_values
-    ) |>
-      mp_tmb_insert(default = list(V2_init = as.numeric(v2_init_candidate)))
-    
-    traj <- spec_i |>
-      mp_simulator(time_steps = sim_horizon, outputs = c("V2")) |>
-      mp_trajectory() |>
-      mutate(date = analysis_start + (time - offset))
-    
-    traj |>
-      filter(date == actual_booster_start, matrix == "V2") |>
-      summarise(value = first(as.numeric(value))) |>
-      pull(value) / NL_POP
-  }
-  
-  objective <- function(x) get_prop(x) - target_prop
-  round(uniroot(objective, lower = 0, upper = NL_POP)$root)
-}
-
-new_V2_init <- calibrate_national_V2_init()
-
-spec_natl <- generate_scenario_boosters("National Rate", actual_booster_start) |>
-  with(set_booster_vax(changepoints, vac_values)) |>
-  mp_tmb_insert(default = list(V2_init = new_V2_init))
 
 vax_scenario_specs <- list(
   "National Rate"   = spec_natl,
@@ -238,41 +213,30 @@ for (i in seq_len(nrow(sim_grid))) {
   policy_name <- sim_grid$policy_name[i]
   vax_name    <- sim_grid$vax_name[i]
   
-  spec_i <- update_vax_spec_beta(
-    vax_scenario_specs[[vax_name]],
-    policy_list[[policy_name]]
-  )
+  spec_i <- update_vax_spec_beta(vax_scenario_specs[[vax_name]], policy_list[[policy_name]])
   
-  all_sim_results[[i]] <- spec_i |>
-    mp_simulator(
-      time_steps = sim_horizon,
-      outputs    = model_outputs
-    ) |>
-    mp_trajectory() |>
-    mutate(
-      date         = analysis_start + (time - offset),
-      policy       = policy_name,
-      vax_scenario = vax_name
+  all_sim_results[[i]] <- (spec_i 
+    |> mp_simulator(time_steps = sim_horizon, outputs = model_outputs) 
+    |> mp_trajectory() 
+    |> mutate(date = burn_in_start + (time - 1), policy = policy_name, vax_scenario = vax_name)
     )
   
   diagnostic <- (spec_i
-                 |> mp_simulator(sim_horizon,
-                                 outputs = diagnostic_outputs
-                 )
+                 |> mp_simulator(sim_horizon,outputs = diagnostic_outputs)
                  |> mp_trajectory_sd(conf.int = TRUE, back_transform = TRUE)
-                 |> dplyr::mutate(date = analysis_start + (time - offset))
-                 |> ggplot() +
-                   geom_rect(data = data.frame(xmin = analysis_start - offset, xmax = analysis_start),
-                             aes(xmin = xmin, xmax = xmax, ymin = -Inf, ymax = Inf), inherit.aes = FALSE, fill = "grey30", alpha = 0.25) +
-                   geom_vline(xintercept = analysis_start + (231 - offset), color = "black", linetype = 4, linewidth = 1.0) +
-                   geom_vline(xintercept = analysis_start + (300 - offset), colour = "purple", linetype = 4, linewidth = 1.5) +
-                   aes(date, value) +
-                   geom_line() +
-                   labs(title = paste0("Diagnostic compartment trajectories - ", policy_name, " | ", vax_name)) +
-                   scale_x_date(expand = c(0, 0), date_breaks = "month", date_labels = "%b %d %Y") +
-                   facet_wrap(~matrix, scales = "free") +
-                   theme_clean() +
-                   theme(
+                 |> dplyr::mutate(date = burn_in_start + (time - 1))
+                 |> ggplot() 
+                 + geom_rect(data = data.frame(xmin = burn_in_start, xmax = omicron_start),
+                             aes(xmin = xmin, xmax = xmax, ymin = -Inf, ymax = Inf), inherit.aes = FALSE, fill = "grey30", alpha = 0.25) 
+                 + geom_vline(xintercept = burn_in_start + (231 - 1), color = "black", linetype = 4, linewidth = 1.0) 
+                 + geom_vline(xintercept = burn_in_start + (300 - 1), colour = "purple", linetype = 4, linewidth = 1.5) 
+                 + aes(date, value) 
+                 + geom_line() 
+                 + labs(title = paste0("Diagnostic compartment trajectories - ", policy_name, " | ", vax_name)) 
+                 + scale_x_date(expand = c(0, 0), date_breaks = "month", date_labels = "%b %d %Y") 
+                 + facet_wrap(~matrix, scales = "free") 
+                 + theme_clean() 
+                 + theme(
                      axis.text.x       = element_text(size = 12,  hjust = 1, angle = 45, margin = margin(t = 8)),
                      axis.text.y       = element_text(size = 18),
                      axis.title.x      = element_text(size = 18),
@@ -292,7 +256,7 @@ for (i in seq_len(nrow(sim_grid))) {
                    )
   )
   
-  diagnostic_tag <- paste0(sanitize_tag(policy_name), "_", sanitize_tag(vax_name))
+  diagnostic_tag <- paste0(panel_tag(policy_name), "_", panel_tag(vax_name))
   
   save_png(
     file.path(fig_dir, paste0("diagnostic_", diagnostic_tag, ".png")),
@@ -330,8 +294,8 @@ if (length(missing_outputs) > 0) {
   )
 }
 
-incidence_df  <- results_df |> filter(date >= analysis_start, date <= analysis_end)
-cumulative_df <- results_df |> filter(date >= analysis_start, date <= analysis_end)
+incidence_df  <- results_df |> filter(date >= omicron_start) #, date <= analysis_end)
+cumulative_df <- results_df |> filter(date >= omicron_start) #, date <= analysis_end)
 
 ab_ymax <- incidence_df |>
   filter(
@@ -365,6 +329,9 @@ de_ymax <- incidence_df |>
   summarise(total_inc = sum(value, na.rm = TRUE), .groups = "drop") |>
   summarise(ymax = max_or_na(total_inc)) |>
   pull(ymax)
+
+
+incidence_ymax <- max(ab_ymax, de_ymax, gh_ymax, na.rm = TRUE)
 
 get_panel_cols <- function(scenario_name) {
   cols <- scenario_dose_cols[[as.character(scenario_name)]]
@@ -413,13 +380,13 @@ make_shaded_incidence_plot <- function(
       linewidth = 2,
       linetype = boundary_linetype
     ) +
-    geom_vline(xintercept = release_date, linetype = "dashed", linewidth = 2) +
+    geom_vline(xintercept = intervention_removed, linetype = "dashed", linewidth = 2) +
     scale_fill_manual(
       values = panel_cols,
       breaks = c("Booster", "≤2 Doses")
     ) +
     scale_x_date(
-      limits       = c(analysis_start, analysis_end),
+      # limits       = c(omicron_start, analysis_end),
       date_breaks  = "1 month",
       date_labels  = "%d %b %Y",
       expand       = c(0.01, 0)
@@ -500,7 +467,7 @@ make_cumulative_policy_plot <- function(df, scenario_name, panel_tag) {
       name = NULL
     ) +
     scale_x_date(
-      limits = c(analysis_start, analysis_end),
+      #limits = c(omicron_start, analysis_end),
       date_breaks = "1 month",
       date_labels = "%d %b %Y",
       expand = c(0.01, 0.08)
@@ -581,7 +548,7 @@ make_cumulative_speed_plot <- function(df, panel_tag) {
       name = NULL
     ) +
     scale_x_date(
-      limits = c(analysis_start, analysis_end),
+      #limits = c(omicron_start, analysis_end),
       date_breaks = "1 month",
       date_labels = "%d %b %Y",
       expand = c(0.01, 0.08)
@@ -623,36 +590,36 @@ make_cumulative_speed_plot <- function(df, panel_tag) {
 
 p_a <- make_shaded_incidence_plot(
   incidence_df, "Actual Boosters", "No-ALS Only",
-  "(A)", "No NPIs", c(0.60, 0.85), ab_ymax, "solid"
+  "(A)", "No NPIs", c(0.60, 0.85), incidence_ymax, "solid"
 )
 
 p_b <- make_shaded_incidence_plot(
   incidence_df, "Actual Boosters", "ALS-4 Only",
-  "(B)", "Strict NPIs", c(0.15, 0.85), ab_ymax, "twodash"
+  "(B)", "Strict NPIs", c(0.15, 0.85), incidence_ymax, "twodash"
 )
 
 p_c <- make_cumulative_policy_plot(cumulative_df, "Actual Boosters", "(C)")
 
 p_d <- make_shaded_incidence_plot(
   incidence_df, "Slower Boosters", "ALS-4 Only",
-  "(D)", "Slower Boosters", c(0.15, 0.85), de_ymax, "twodash"
+  "(D)", "Slower Boosters", c(0.15, 0.85), incidence_ymax, "twodash"
 )
 
 p_e <- make_shaded_incidence_plot(
   incidence_df, "Faster Boosters", "ALS-4 Only",
-  "(E)", "Faster Boosters", c(0.15, 0.85), de_ymax, "twodash"
+  "(E)", "Faster Boosters", c(0.15, 0.85), incidence_ymax, "twodash"
 )
 
 p_f <- make_cumulative_speed_plot(cumulative_df, "(F)")
 
 p_g <- make_shaded_incidence_plot(
   incidence_df, "Early Boosters", "ALS-4 Only",
-  "(G)", "Early Boosters", c(0.15, 0.85), gh_ymax, "twodash"
+  "(G)", "Early Boosters", c(0.15, 0.85), incidence_ymax, "twodash"
 )
 
 p_h <- make_shaded_incidence_plot(
   incidence_df, "Actual Boosters", "ALS-4 Only",
-  "(H)", "Actual Boosters", c(0.15, 0.85), gh_ymax, "twodash"
+  "(H)", "Actual Boosters", c(0.15, 0.85), incidence_ymax, "twodash"
 )
 
 plot_i_df <- incidence_df |>
@@ -741,8 +708,8 @@ vax_short_labs <- c(
 figure2_df <- bind_rows(
   results_df |>
     filter(
-      date >= analysis_start,
-      date <= analysis_end,
+      date >= omicron_start,
+      #date <= analysis_end,
       matrix == "cum_hosp_total"
     ) |>
     group_by(policy, vax_scenario) |>
@@ -751,8 +718,8 @@ figure2_df <- bind_rows(
   
   results_df |>
     filter(
-      date >= analysis_start,
-      date <= analysis_end,
+      date >= omicron_start,
+      #date <= analysis_end,
       matrix == "cum_death_total"
     ) |>
     group_by(policy, vax_scenario) |>
@@ -852,3 +819,5 @@ save_png(
   width  = 10000,
   height = 5000
 )
+
+

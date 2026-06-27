@@ -4,11 +4,11 @@ library(shellpipes)
 loadEnvironments()
 
 # number of days before the first data point to start simulations
-offset0 <- 150
-booster_offset <- 107
+
+offset <- 150
 NL_POP <- 510550
 
-day0 <- as.Date("2021-12-15") - lubridate::days(offset0)
+day0 <- as.Date("2021-11-08") - lubridate::days(offset)
 
 dat <- csvRead()
 
@@ -33,8 +33,8 @@ nl <- (dat
 # ------------------------------------------------------------
 
 V2_init <- (nl 
-	|> filter(type == "numtotal_fully", week_end == as.Date("2021-07-24")) 
-	|> pull(value)
+  |> filter(type == "numtotal_fully", week_end == as.Date("2021-07-17")) 
+  |> pull(value)
 )
 
 # ------------------------------------------------------------
@@ -55,7 +55,6 @@ nl_vax <- (nl
   	) 
 	|> ungroup() 
 	|> select(type, days, daily_rate, week_end, value) 
-#	|> filter(between(days, 0, 159 + offset0))
 )
 
 print(nl_vax,n=Inf)
