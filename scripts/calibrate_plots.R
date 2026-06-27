@@ -6,7 +6,6 @@ loadEnvironments()
 
 NL_POP <- 510550
 upper_plot_time <- 300
-omicron_start  <- as.Date("2021-12-15")
 burn_in_start  <- omicron_start - lubridate::days(150)
 upper_date <- burn_in_start + upper_plot_time
 

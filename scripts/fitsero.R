@@ -7,10 +7,7 @@ loadEnvironments()
 
 serodat <- rdsRead()
 
-offset <- 150
-omicron_start <- as.Date("2021-12-15")
 burn_in_start <- omicron_start - offset
-analysis_end  <- "2022-05-22"
 
 newdat <- data.frame(time = (min(serodat$time)-1):max(serodat$time))
 

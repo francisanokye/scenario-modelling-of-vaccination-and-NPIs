@@ -24,9 +24,9 @@ NL_POP         <- 510550
 dat <- csvRead()
 
 nl <- (dat 
-       |> filter(grepl("ewfoundland", prename, ignore.case = TRUE)) 
-       |> select(week_end, contains("numtotal")) 
-       |> pivot_longer(-week_end, names_to = "type", values_to = "value")
+	|> filter(grepl("ewfoundland", prename, ignore.case = TRUE)) 
+	|> select(week_end, contains("numtotal")) 
+	|> pivot_longer(-week_end, names_to = "type", values_to = "value")
 )
 
 # ------------------------------------------------------------
@@ -35,18 +35,16 @@ nl <- (dat
 # Pulled at the PHAC week_end nearest burn_in_start (2021-07-17, one
 # day before the actual burn-in start, burn_in_start = 2021-07-18).
 V2_init <- (nl 
-  |> filter(type == "numtotal_fully", week_end == as.Date("2021-07-17")) 
-  |> pull(value)
-  )
+	|> filter(type == "numtotal_fully", week_end == as.Date("2021-07-17")) 
+	|> pull(value)
+)
 
 
 nl_vax <- (nl 
-  |> filter(type %in% c("numtotal_additional", "numtotal_fully")) 
-  |> filter(!is.na(value)) 
-  |> arrange(type, week_end) 
-  |> group_by(type) 
-  |> ungroup() 
-  |> select(type, week_end, value) 
+	|> filter(type %in% c("numtotal_additional", "numtotal_fully")) 
+	|> filter(!is.na(value)) 
+	|> arrange(type, week_end) 
+	|> select(type, week_end, value) 
 )
 
 #####################################################################
@@ -62,9 +60,9 @@ filldat <- (data.frame(date = c(as.Date("2021-11-08"),as.Date("2022-01-11"))
 boosterdat <- (nl_vax
 	|> filter(type == "numtotal_additional")
 	|> transmute(NULL
-		, type
-		, date = week_end
-		, value
+	, type
+	, date = week_end
+	, value
 	)
 )
 
@@ -74,11 +72,11 @@ boosterframe <- (data.frame(date = as.Date(c(min(filldat$date):max(boosterdat$da
 )
 
 boosterframe <- (boosterframe 
-  |> mutate(cum_interp = round(na.approx(value))
-            , daily_rate = pmax(cum_interp - lag(cum_interp, default = 0), 0)
-            )
-  |> filter(date >= booster_start & date <= analysis_end)
-  |> select(date, cum_interp, daily_rate)
+	|> mutate(cum_interp = round(na.approx(value))
+		, daily_rate = pmax(cum_interp - lag(cum_interp, default = 0), 0)
+	)
+	|> filter(date >= booster_start & date <= analysis_end)
+	|> select(date, cum_interp, daily_rate)
 )
 
 #####################################################################

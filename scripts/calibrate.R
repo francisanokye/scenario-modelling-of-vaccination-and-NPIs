@@ -37,25 +37,26 @@ calibdata = (fitsero
 )
 
 time_steps = max(seroprevdata$time)
+
 upper_plot_time = 300
 sim_horizon = 530
 omicron_start = as.Date("2021-12-15")
 
 # construct spline basis for beta(t)
 if (spline_beta) {
-  basis_cols = 15
-  basis_rows = time_steps
-  X = splines::ns(1:basis_rows
-                  , basis_cols
-                  , intercept = TRUE
-                  , Boundary.knots = c(offset, basis_rows)
-  )
-  timevar_spec = mp_tmb_insert_glm_timevar(timevar_spec
-   , parameter_name = "beta"
-   , design_matrix = X
-   , timevar_coef = rep(0, basis_cols)
-   , link_function = mp_log
-  )
+	basis_cols = 15
+	basis_rows = time_steps
+	X = splines::ns(1:basis_rows
+		, basis_cols
+		, intercept = TRUE
+		, Boundary.knots = c(offset, basis_rows)
+	)
+	timevar_spec = mp_tmb_insert_glm_timevar(timevar_spec
+		, parameter_name = "beta"
+		, design_matrix = X
+		, timevar_coef = rep(0, basis_cols)
+		, link_function = mp_log
+	)
 }
 
 # prior constructor
@@ -75,6 +76,7 @@ priors = list(log_beta = mp_norm(log(0.25), log(1))
   , logit_kappa3 = get_prior(qlogis)(prior_range$kappa3)
   , log_sigma = get_prior(log)(prior_range$sigma)
 )
+
 
 # fit model using seroprevalence data
 calibrator = mp_tmb_calibrator(

@@ -22,22 +22,24 @@ sir.Rout: sir.R
 ## Processing vaccination data
 #####################################################################################################
 
+## Delete?!?
 vacdat.Rout: vacdat.R ../data/vaccination-coverage-map.csv 
 	$(pipeR)
 
-process_vac.Rout: process_vac.R ../data/vaccination-coverage-map.csv vacdat.rda
+constrain_params.Rout: constrain_params.R 
 	$(pipeR)
 
+process_vac.Rout: process_vac.R ../data/vaccination-coverage-map.csv constrain_params.rda
+	$(pipeR)
+
+## Need to redo this. 
 scenarios.Rout: scenarios.R  process_vac.rda
 	$(pipeR)
 	
 #vax_scenario_setup.Rout: vax_scenario_setup.R ../data/vaccination-coverage-map.csv 
 #	$(pipeR)
 
-vax_actual_boosters.Rout: vax_actual_boosters.R process_vac.rda #vax_scenario_setup.rda
-	$(pipeR)
-
-params.Rout: params.R process_vac.rda #vacdat.rda 
+params.Rout: params.R process_vac.rda constrain_params.rda
 	$(pipeR)
 
 flows.Rout: flows.R params.rda 
@@ -55,8 +57,10 @@ fitsero.Rout: fitsero.R seroprevdata.rds ../data/raw_citf_data.csv params.rda
 calibrate.Rout: calibrate.R timevar_spec.rds seroprevdata.rds fitsero.rds params.rda
 	$(pipeR)
 
-calibrate_plots.Rout: calibrate_plots.R calibrate.rds seroprevdata.rds fitsero.rds vacdat.rda
+calibrate_plots.Rout: calibrate_plots.R calibrate.rds seroprevdata.rds fitsero.rds params.rda
 	$(pipeR)
+
+## Everything above needs to be perfect before we do scenarios
 
 base_beta.Rout: base_beta.R calibrate.rds timevar_spec.rds
 	$(pipeR)
