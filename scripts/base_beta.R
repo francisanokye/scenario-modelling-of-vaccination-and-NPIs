@@ -7,9 +7,8 @@ library(shellpipes)
 loadEnvironments()
 
 new_constant_value <- 0.3675
-cutoff_time <- 232
 
-cal = rdsRead("calibrate")
+cal = rdsRead()
 spec = mp_optimized_spec(cal, spec_structure = "modified")
 time_steps = cal$simulator$tmb_model$time_steps$time_steps
 

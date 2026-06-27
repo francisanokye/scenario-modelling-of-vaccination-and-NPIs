@@ -49,25 +49,28 @@ calibrate.Rout: calibrate.R timevar_spec.rds seroprevdata.rds fitsero.rds params
 calibrate_plots.Rout: calibrate_plots.R calibrate.rds seroprevdata.rds fitsero.rds params.rda
 	$(pipeR)
 
-## Everything above is about 80% clean
+scenario_params.Rout: scenario_params.R constrain_params.rda
+	$(pipeR)
+
+base_beta.Rout: base_beta.R calibrate.rds scenario_params.rda
+	$(pipeR)
+
+beta_als4.Rout: beta_als4.R base_beta.rds scenario_params.rda
+	$(pipeR)
+
+policy_neutral.Rout: policy_neutral.R base_beta.rds scenario_params.rda
+	$(pipeR)
+
+## Everything above clean?
+
+## Need to revisit later after figuring the vaccination stuff.
+control_reprod_numb.Rout: control_reprod_numb.R beta_als4.rds policy_neutral.rds seroprevdata.rds fitsero.rds scenario.rda calibrate.rds
+	$(pipeR)
 
 ## Need to redo this. 
 scenarios.Rout: scenarios.R  process_vac.rda
 	$(pipeR)
 	
-base_beta.Rout: base_beta.R calibrate.rds timevar_spec.rds
-	$(pipeR)
-
-beta_als4.Rout: beta_als4.R base_beta.rds
-	$(pipeR)
-
-policy_neutral.Rout: policy_neutral.R base_beta.rds
-	$(pipeR)
-
-## Need to revisit later after figuring the vaccination stuff.
-control_reprod_numb.Rout: control_reprod_numb.R beta_als4.rds policy_neutral.rds seroprevdata.rds fitsero.rds params.rda calibrate.rds
-	$(pipeR)
-
 ## Canada Vaccination data
 can_vacdat.Rout: can_vacdat.R ../data/vaccination-coverage-map.csv 
 	$(pipeR)

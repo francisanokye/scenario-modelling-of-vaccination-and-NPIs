@@ -2,14 +2,6 @@ library(shellpipes)
 
 loadEnvironments()
 
-offset <- 150
-omicron_start  <- as.Date("2021-12-15")
-intervention_removed <- as.Date("2022-03-14")
-burn_in_start  <- omicron_start - lubridate::days(offset)
-
-step_start <- as.numeric(omicron_start - burn_in_start) + 1
-step_end   <- as.numeric(intervention_removed - burn_in_start) + 1
-
 new_constant_value <- 0.3675
 
 base_beta <- rdsRead()
