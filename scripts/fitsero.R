@@ -7,19 +7,16 @@ loadEnvironments()
 
 serodat <- rdsRead()
 
-burn_in_start <- omicron_start - offset
-
 newdat <- data.frame(time = (min(serodat$time)-1):max(serodat$time))
 
-dat <- (
-  serodat
-  |> transmute(NULL
-      , date
-      , time
-      , value
-      , cumInc = value*params[["N"]]
-      )
-  )
+dat <- (serodat
+	|> transmute(NULL
+		, date
+		, time
+		, value
+		, cumInc = value*params[["N"]]
+	)
+)
 
 mm <- lm(cumInc ~ bs(time,6), data = dat)
 
@@ -32,8 +29,7 @@ gg <- (ggplot()
 
 print(gg)
 
-incdat <- (
-  newdat
+incdat <- (newdat
   |> mutate(predInc = round(diff(c(12800,predcumInc))) 
       , date = as.Date(omicron_start) - offset - 1 + time
       )
@@ -42,8 +38,7 @@ incdat <- (
 print(plot(x=incdat$time, y=incdat$predInc))
 
 # convert to seroprevalence matrix format for modeling
-fitdat <- (
-  incdat
+fitdat <- (incdat
   |>transmute(NULL
     , date
     , time = as.numeric(date - as.Date(omicron_start)) + 1 + offset

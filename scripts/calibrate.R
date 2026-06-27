@@ -40,7 +40,6 @@ time_steps = max(seroprevdata$time)
 
 upper_plot_time = 300
 sim_horizon = 530
-omicron_start = as.Date("2021-12-15")
 
 # construct spline basis for beta(t)
 if (spline_beta) {

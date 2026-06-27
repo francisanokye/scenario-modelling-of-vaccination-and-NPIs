@@ -4,9 +4,7 @@ library(shellpipes)
 
 loadEnvironments()
 
-NL_POP <- 510550
 upper_plot_time <- 300
-burn_in_start  <- omicron_start - lubridate::days(150)
 upper_date <- burn_in_start + upper_plot_time
 
 housedat <- data.frame(date = as.Date("2022-01-11")

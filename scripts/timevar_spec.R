@@ -10,8 +10,6 @@ loadEnvironments()
 
 reporting_delay  <- TRUE
 
-burn_in_start    <- omicron_start - days(offset)
-
 # ------------------------------------------------------------
 # Vaccination inputs
 # ------------------------------------------------------------
