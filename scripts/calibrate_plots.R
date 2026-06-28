@@ -4,7 +4,6 @@ library(shellpipes)
 
 loadEnvironments()
 
-upper_plot_time <- 300
 upper_date <- burn_in_start + upper_plot_time
 
 housedat <- data.frame(date = as.Date("2022-01-11")

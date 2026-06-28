@@ -27,7 +27,6 @@ spline_beta = TRUE
 
 # load input data
 timevar_spec <- rdsRead("timevar_spec.rds")
-seroprevdata <- rdsRead("seroprevdata.rds")
 fitsero <- rdsRead("fitsero.rds")
 
 calibdata = (fitsero
@@ -36,10 +35,7 @@ calibdata = (fitsero
 	|> mutate(matrix = "log_newR", value = log(value))
 )
 
-time_steps = max(seroprevdata$time)
-
-upper_plot_time = 300
-sim_horizon = 530
+time_steps = max(fitsero$time)
 
 # construct spline basis for beta(t)
 if (spline_beta) {

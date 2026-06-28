@@ -43,7 +43,8 @@ seroprevdata.Rout: seroprevdata.R constrain_params.rda ../data/raw_citf_data.csv
 fitsero.Rout: fitsero.R seroprevdata.rds ../data/raw_citf_data.csv params.rda
 	$(pipeR)
 
-calibrate.Rout: calibrate.R timevar_spec.rds seroprevdata.rds fitsero.rds params.rda
+# calibrate.Rout: calibrate.R constrain_params.R
+calibrate.Rout: calibrate.R timevar_spec.rds fitsero.rds params.rda
 	$(pipeR)
 
 calibrate_plots.Rout: calibrate_plots.R calibrate.rds seroprevdata.rds fitsero.rds params.rda
@@ -61,11 +62,22 @@ beta_als4.Rout: beta_als4.R base_beta.rds scenario_params.rda
 policy_neutral.Rout: policy_neutral.R base_beta.rds scenario_params.rda
 	$(pipeR)
 
-## Everything above clean?
-
 ## Need to revisit later after figuring the vaccination stuff.
-control_reprod_numb.Rout: control_reprod_numb.R base_beta.rds beta_als4.rds policy_neutral.rds seroprevdata.rds fitsero.rds calibrate.rds constrain_params.rda params.rda
+# Rc.Rout: Rc.R constrain_params.R 
+Rc.Rout: Rc.R calibrate.rds params.rda
 	$(pipeR)
+
+impmakeR += newRc
+# base_beta.newRc.Rout: newRc.R 
+# beta_als4.newRc.Rout: newRc.R 
+# policy_neutral.newRc.Rout: newRc.R 
+%.newRc.Rout: newRc.R %.rds Rc.rda params.rda
+	$(pipeR)
+
+combo_newRc.Rout: combo_newRc.R base_beta.newRc.rds beta_als4.newRc.rds policy_neutral.newRc.rds constrain_params.rda 
+	$(pipeR)
+
+## Everything above should be ok ?!?
 
 vax_early_boosters.Rout: vax_early_boosters.R process_vac.rda
 	$(pipeR)
