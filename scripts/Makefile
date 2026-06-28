@@ -64,22 +64,7 @@ policy_neutral.Rout: policy_neutral.R base_beta.rds scenario_params.rda
 ## Everything above clean?
 
 ## Need to revisit later after figuring the vaccination stuff.
-control_reprod_numb.Rout: control_reprod_numb.R beta_als4.rds policy_neutral.rds seroprevdata.rds fitsero.rds scenario.rda calibrate.rds
-	$(pipeR)
-
-## Need to redo this. 
-scenarios.Rout: scenarios.R  process_vac.rda
-	$(pipeR)
-	
-## Canada Vaccination data
-can_vacdat.Rout: can_vacdat.R ../data/vaccination-coverage-map.csv 
-	$(pipeR)
-
-### Derive vaccination scenarios
-initial_can_rate.Rout: initial_can_rate.R ../data/vaccination-coverage-map.csv 
-	$(pipeR)
-	
-vax_scenario_setup.Rout: vax_scenario_setup.R ../data/vaccination-coverage-map.csv 
+control_reprod_numb.Rout: control_reprod_numb.R base_beta.rds beta_als4.rds policy_neutral.rds seroprevdata.rds fitsero.rds calibrate.rds constrain_params.rda params.rda
 	$(pipeR)
 
 vax_early_boosters.Rout: vax_early_boosters.R process_vac.rda
@@ -94,24 +79,20 @@ vax_slower_rate.Rout: vax_slower_rate.R process_vac.rda
 vax_national_rate.Rout: vax_national_rate.R ../data/vaccination-coverage-map.csv
 	$(pipeR)
 
-combine_vax_scenarios.Rout: combine_vax_scenarios.R vax_scenario_setup.rda vax_actual_boosters.rda vax_early_boosters.rda \
-	vax_faster_rate.rda \
-	vax_slower_rate.rda \
-	vax_national_rate.rda
-	$(pipeR)	
-	
+## Need to redo this. 
+scenarios.Rout: scenarios.R  process_vac.rda
+	$(pipeR)
+
 ### Simulate trajectories for ALS policies and vaccination scenarios	
 generate_figure1.Rout: generate_figure1.R calibrate.rds base_beta.rds beta_als4.rds policy_neutral.rds vax_slower_rate.rda vax_faster_rate.rda vax_early_boosters.rda \
 	vax_national_rate.rda fitsero.rds seroprevdata.rds params.rda ../data/serop_avgcase_data.csv params.rda
 	$(pipeR)
 
-extract_booster_info.Rout: extract_booster_info.R calibrate.rds combine_vax_scenarios.rda 
-	$(pipeR)
+# extract_booster_info.Rout: extract_booster_info.R calibrate.rds  
+#	$(pipeR)
 
-extension_als4.Rout: extension_als4.R calibrate.rds beta_ALS4_0days_only beta_ALS4_7days_only beta_als4_14days_only.rds beta_als4_28days_only.rds beta_als4_40days_only.rds \
-	beta_als4_60days_only.rds beta_als4_90days_only.rds beta_als4_120days_only.rds beta_als4_150days_only.rds beta_als4_180days_only.rds \
-	build_multipliers.rda fitsero.rds params.rda combine_vax_scenarios.rda ../data/serop_avgcase_data.csv 
-	$(pipeR)
+#extension_als4.Rout: extension_als4.R calibrate.rds fitsero.rds params.rda  ../data/serop_avgcase_data.csv 
+#	$(pipeR)
 	
 Ignore += makestuff
 msrepo = https://github.com/dushoff

@@ -144,9 +144,8 @@ spec_natl$integers$booster_vac_changepoints <- as.integer(national_booster_chang
 spec_natl$default$booster_vac_values        <- as.numeric(national_booster_values)
 
 # insert new natioanl initial vaccinated
-spec_natl <- (spec_natl |>
+spec_natl <- spec_natl |> 
   mp_tmb_insert(default = list(V2_init = new_V2_init))
-  )
 
 ############# update the betas ##############################
 
