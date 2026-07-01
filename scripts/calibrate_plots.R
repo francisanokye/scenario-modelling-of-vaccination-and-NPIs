@@ -14,7 +14,6 @@ housedat <- data.frame(date = as.Date("2022-01-11")
 # simulate trajectories from posterior
 sims = (rdsRead("calibrate")
 	|> mp_trajectory_sd(conf.int = TRUE, back_transform = TRUE)
-#	|> filter(time >= offset0)
 	|> mutate(date = burn_in_start + (time - 1))
 )
 

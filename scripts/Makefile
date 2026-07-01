@@ -79,16 +79,39 @@ combo_newRc.Rout: combo_newRc.R base_beta.newRc.rds beta_als4.newRc.rds policy_n
 
 ## Everything above should be ok ?!?
 
-vax_early_boosters.Rout: vax_early_boosters.R process_vac.rda
+impmakeR += betasim
+# base_beta.betasim.Rout: betasim.R 
+# beta_als4.betasim.Rout: betasim.R 
+# policy_neutral.betasim.Rout: betasim.R 
+%.betasim.Rout: betasim.R calibrate.rds %.rds constrain_params.rda
 	$(pipeR)
 
-vax_faster_rate.Rout: vax_faster_rate.R process_vac.rda 
+combo_betasim.Rout: combo_betasim.R base_beta.betasim.rds beta_als4.betasim.rds policy_neutral.betasim.rds
 	$(pipeR)
 
-vax_slower_rate.Rout: vax_slower_rate.R process_vac.rda
+vax_early_boosters.Rout: vax_early_boosters.R process_vac.rda constrain_params.rda
 	$(pipeR)
 
-vax_national_rate.Rout: vax_national_rate.R ../data/vaccination-coverage-map.csv
+vacsim.Rout: vacsim.R calibrate.rds vax_early_boosters.rda constrain_params.rda
+	$(pipeR)
+
+
+
+
+
+
+
+#vax_faster_rate.Rout: vax_faster_rate.R process_vac.rda 
+#	$(pipeR)
+
+#vax_slower_rate.Rout: vax_slower_rate.R process_vac.rda
+#	$(pipeR)
+
+#vax_national_rate.Rout: vax_national_rate.R ../data/vaccination-coverage-map.csv
+#	$(pipeR)
+
+# run simulations 
+sim_results.Rout: sim_results.R sim_setup.rda params.rda
 	$(pipeR)
 
 ## Need to redo this. 
@@ -102,9 +125,9 @@ sim_setup.Rout: sim_setup.R calibrate.rds policy_neutral.rds base_beta.rds beta_
 	vax_national_rate.rda constrain_params.rda params.rda
 	$(pipeR)
 
-# run simulations 
-sim_results.Rout: sim_results.R sim_setup.rda params.rda
-	$(pipeR)
+## run simulations 
+#sim_results.Rout: sim_results.R sim_setup.rda params.rda
+#	$(pipeR)
 
 # figure 2 (incidence panels)
 figure2.Rout: figure2.R sim_results.rda sim_setup.rda params.rda
