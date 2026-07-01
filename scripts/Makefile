@@ -94,18 +94,31 @@ vax_national_rate.Rout: vax_national_rate.R ../data/vaccination-coverage-map.csv
 ## Need to redo this. 
 scenarios.Rout: scenarios.R  process_vac.rda
 	$(pipeR)
+	
+impmakeR += sim_setup
 
-### Simulate trajectories for ALS policies and vaccination scenarios	
-generate_figure1.Rout: generate_figure1.R calibrate.rds base_beta.rds beta_als4.rds policy_neutral.rds vax_slower_rate.rda vax_faster_rate.rda vax_early_boosters.rda \
-	vax_national_rate.rda fitsero.rds seroprevdata.rds params.rda ../data/serop_avgcase_data.csv params.rda
+# simulation setup
+sim_setup.Rout: sim_setup.R calibrate.rds policy_neutral.rds base_beta.rds beta_als4.rds vax_slower_rate.rda vax_faster_rate.rda vax_early_boosters.rda \
+	vax_national_rate.rda constrain_params.rda params.rda
 	$(pipeR)
 
-# extract_booster_info.Rout: extract_booster_info.R calibrate.rds  
-#	$(pipeR)
+# run simulations 
+sim_results.Rout: sim_results.R sim_setup.rda params.rda
+	$(pipeR)
 
-#extension_als4.Rout: extension_als4.R calibrate.rds fitsero.rds params.rda  ../data/serop_avgcase_data.csv 
-#	$(pipeR)
+# figure 2 (incidence panels)
+figure2.Rout: figure2.R sim_results.rda sim_setup.rda params.rda
+	$(pipeR)
+
+# figure 3 (severity bar chart) 
+figure3.Rout: figure3.R sim_results.rda sim_setup.rda params.rda
+	$(pipeR)
 	
+# vaccination snapshot table 
+vax_snapshot.Rout: vax_snapshot.R sim_setup.rda params.rda
+	$(pipeR)
+
+
 Ignore += makestuff
 msrepo = https://github.com/dushoff
 

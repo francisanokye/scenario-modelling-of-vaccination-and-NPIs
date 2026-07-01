@@ -87,7 +87,7 @@ can_boosterframe <- (can_boosterframe
                                 )
 )
 
-# print(can_boosterframe)
+print(can_boosterframe |> ggplot(aes(date,daily_rate)) + geom_line() +geom_point())
 
 saveEnvironment()
 

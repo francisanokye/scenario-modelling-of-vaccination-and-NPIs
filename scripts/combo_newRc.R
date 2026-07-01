@@ -87,3 +87,6 @@ gg <- (ggplot(comboRc, aes(date, Rc, color = scenario, fill = scenario))
 
 print(gg)
 
+png("../figures/reprod_numb.png", width = 5000, height = 2000, res = 300, bg = "white",type = "cairo")
+print(gg)
+dev.off()

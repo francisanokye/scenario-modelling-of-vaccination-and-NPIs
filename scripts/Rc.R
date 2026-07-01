@@ -66,12 +66,5 @@ baseRc <- (mp_trajectory_sd(calibrator,conf.int=TRUE, back_transform=TRUE)
 	|> filter(date >= omicron_start, date <= analysis_end) 
 )
 
-gg <- (ggplot(baseRc, aes(date, y= beta))
-	+ geom_line()
-	+ geom_ribbon(aes(ymin=beta_lwr, ymax=beta_upr),alpha=0.2)
-)
-
-print(gg)
-
 saveVars(baseRc)
 
