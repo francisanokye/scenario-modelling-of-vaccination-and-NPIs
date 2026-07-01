@@ -1,27 +1,22 @@
 library(tidyverse)
+library(zoo)
 library(lubridate)
 library(shellpipes)
 
 loadEnvironments()
 
-analysis_start <- as.Date("2021-11-08")
-analysis_end   <- as.Date("2022-05-22")
+vscale_factor <- 1
 
-init_date        <- analysis_start - days(offset)
+new_booster <- (boosterframe 
+	|> arrange(date) 
+	|> mutate(NULL
+		, day = as.numeric(date - burn_in_start)
+		, daily_rate = daily_rate * vscale_factor 
+		, new_cum = cumsum(daily_rate)
+		, daily_rate = ifelse(new_cum > booster_max, 0, daily_rate)
+	)
+)
 
-
-actual_boosters <- boosterframe |>
-  arrange(date) |>
-  filter(date >= analysis_start, date <= analysis_end) |>
-  mutate(
-    day = as.numeric(date - init_date),
-    scenario = "Actual Boosters",
-    daily_rate = daily_rate,
-    cumulative_total = cumsum(daily_rate)
-  ) |>
-  select(date, day, scenario, daily_rate, cumulative_total)
-
-
-rdsSave(actual_boosters)
+print(new_booster)
 
 saveEnvironment()

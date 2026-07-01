@@ -77,8 +77,6 @@ impmakeR += newRc
 combo_newRc.Rout: combo_newRc.R base_beta.newRc.rds beta_als4.newRc.rds policy_neutral.newRc.rds constrain_params.rda 
 	$(pipeR)
 
-## Everything above should be ok ?!?
-
 impmakeR += betasim
 # base_beta.betasim.Rout: betasim.R 
 # beta_als4.betasim.Rout: betasim.R 
@@ -89,28 +87,35 @@ impmakeR += betasim
 combo_betasim.Rout: combo_betasim.R base_beta.betasim.rds beta_als4.betasim.rds policy_neutral.betasim.rds
 	$(pipeR)
 
+vax_actual_boosters.Rout: vax_actual_boosters.R process_vac.rda constrain_params.rda
+	$(pipeR)
+
 vax_early_boosters.Rout: vax_early_boosters.R process_vac.rda constrain_params.rda
 	$(pipeR)
 
-vax_faster_rate.Rout: vax_faster_rate.R process_vac.rda 
+vax_faster_rate.Rout: vax_faster_rate.R process_vac.rda constrain_params.rda 
 	$(pipeR)
 
+vax_slower_rate.Rout: vax_slower_rate.R process_vac.rda constrain_params.rda
+	$(pipeR)
+
+vax_national_rate.Rout: vax_national_rate.R ../data/vaccination-coverage-map.csv constrain_params.rda
+	$(pipeR)
+
+## Need to clean up above, delete commented codes
+
 impmakeR += vacsim
+# vax_actual_boosters.vacsim.Rout: vacsim.R
 # vax_early_boosters.vacsim.Rout: vacsim.R
 # vax_faster_rate.vacsim.Rout: vacsim.R
+# vax_slower_rate.vacsim.Rout: vacsim.R
+# vax_national_rate.vacsim.Rout: vacsim.R
 %.vacsim.Rout: vacsim.R calibrate.rds %.rda constrain_params.rda
 	$(pipeR)
 
+combo_vacsim.Rout: combo_vacsim.R vax_actual_boosters.vacsim.rds vax_early_boosters.vacsim.rds vax_faster_rate.vacsim.rds vax_slower_rate.vacsim.rds vax_national_rate.vacsim.rds
+	$(pipeR)
 
-
-
-
-
-#vax_faster_rate.Rout: vax_faster_rate.R process_vac.rda 
-#	$(pipeR)
-
-#vax_slower_rate.Rout: vax_slower_rate.R process_vac.rda
-#	$(pipeR)
 
 #vax_national_rate.Rout: vax_national_rate.R ../data/vaccination-coverage-map.csv
 #	$(pipeR)
