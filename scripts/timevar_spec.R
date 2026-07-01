@@ -55,6 +55,8 @@ double_vac_values        <- as.numeric(double_daily_vac$daily_rate)
 booster_vac_changepoints <- as.integer(booster_daily_vac$day)
 booster_vac_values       <- as.numeric(booster_daily_vac$daily_rate)
 
+print(booster_vac_changepoints)
+
 if (!any(double_vac_changepoints == 0)) {
   double_vac_changepoints <- c(0L, double_vac_changepoints)
   double_vac_values       <- c(0,  double_vac_values)

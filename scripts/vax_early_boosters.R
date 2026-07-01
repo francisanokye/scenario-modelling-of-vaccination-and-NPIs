@@ -40,9 +40,12 @@ print(booster_daily_vac)
 
 new_booster <- (booster_daily_vac
 	|> mutate(NULL
+  		, day2 = as.numeric(date - burn_in_start)
 		, day = day - days_earlier
 		, date = date + day
+		, day = day2 - days_earlier
 	)
+	|> select(-day2) 
 )
 
 print(new_booster)

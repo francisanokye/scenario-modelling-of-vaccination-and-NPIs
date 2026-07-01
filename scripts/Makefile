@@ -92,9 +92,14 @@ combo_betasim.Rout: combo_betasim.R base_beta.betasim.rds beta_als4.betasim.rds 
 vax_early_boosters.Rout: vax_early_boosters.R process_vac.rda constrain_params.rda
 	$(pipeR)
 
-vacsim.Rout: vacsim.R calibrate.rds vax_early_boosters.rda constrain_params.rda
+vax_faster_rate.Rout: vax_faster_rate.R process_vac.rda 
 	$(pipeR)
 
+impmakeR += vacsim
+# vax_early_boosters.vacsim.Rout: vacsim.R
+# vax_faster_rate.vacsim.Rout: vacsim.R
+%.vacsim.Rout: vacsim.R calibrate.rds %.rda constrain_params.rda
+	$(pipeR)
 
 
 

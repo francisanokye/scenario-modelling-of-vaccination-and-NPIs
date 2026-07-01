@@ -13,6 +13,7 @@ booster_start <- as.Date("2021-11-08")
 early_start_date <- as.Date("2021-10-04")
 
 NL_POP <- 510550
+booster_max <- NL_POP*0.55
 upper_plot_time <- 300
 sim_horizon = 530
 new_V2_init <- NA_real_
