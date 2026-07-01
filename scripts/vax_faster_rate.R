@@ -15,6 +15,17 @@ new_booster <- (boosterframe
 		, new_cum = cumsum(daily_rate)
 		, daily_rate = ifelse(new_cum > booster_max, 0, daily_rate)
 	)
+	|> filter(daily_rate > 0)
+)
+
+## To make sure we have the same boosterbox
+lastdat <- data.frame(date = c(as.Date("2022-02-01"),as.Date("2022-02-02"))
+	, daily_rate = c(1320,0)
+	, day = c(198,199)
+)
+
+new_booster <- (new_booster
+	|> bind_rows(lastdat)
 )
 
 print(new_booster)

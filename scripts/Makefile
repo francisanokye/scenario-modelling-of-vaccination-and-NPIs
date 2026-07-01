@@ -113,12 +113,33 @@ impmakeR += vacsim
 %.vacsim.Rout: vacsim.R calibrate.rds %.rda constrain_params.rda
 	$(pipeR)
 
-combo_vacsim.Rout: combo_vacsim.R vax_actual_boosters.vacsim.rds vax_early_boosters.vacsim.rds vax_faster_rate.vacsim.rds vax_slower_rate.vacsim.rds vax_national_rate.vacsim.rds
+#combo_vacsim.Rout: combo_vacsim.R vax_actual_boosters.vacsim.rds vax_early_boosters.vacsim.rds vax_faster_rate.vacsim.rds vax_slower_rate.vacsim.rds vax_national_rate.vacsim.rds
+#	$(pipeR)
+
+combo_vacsim.Rout: combo_vacsim.R vax_actual_boosters.vacsim.rds vax_faster_rate.vacsim.rds vax_faster_rate.R
 	$(pipeR)
 
 
-#vax_national_rate.Rout: vax_national_rate.R ../data/vaccination-coverage-map.csv
-#	$(pipeR)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 # run simulations 
 sim_results.Rout: sim_results.R sim_setup.rda params.rda

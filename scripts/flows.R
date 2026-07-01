@@ -34,6 +34,8 @@ flows <- list(
   p1 ~ S1/N ,
   p2 ~ V2/N ,
   p3 ~ V3/N ,
+
+  boosterbox ~ V3 + E3 + A3 + I3 + R3,
   
   cum_double_vac ~ cum_double_vac + double_vac,
   cum_booster ~ cum_booster + booster_shot,
