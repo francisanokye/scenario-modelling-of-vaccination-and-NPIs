@@ -15,7 +15,10 @@ Sources += Makefile
 Sources += $(wildcard *.R)
 
 ## Example of accumulator
-sir.Rout: sir.R
+VSIR_model.Rout: VSIR_model.R
+	$(pipeR)
+	
+VSIR_simulate.Rout: VSIR_simulate.R VSIR_model.rds
 	$(pipeR)
 
 #####################################################################################################
