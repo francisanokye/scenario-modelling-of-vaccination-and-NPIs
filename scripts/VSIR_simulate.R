@@ -18,7 +18,7 @@ vax1_sched <- c(nu ,nu, nu)
 
 vax2_sched <- c(2*nu,2*nu,0)
 
-vax_times <- c(1,2, vax_end)
+vax_times <- c(1,2, 150)
 
 # insert beta and vax_rate 
 make_scenario <- function(spec, vax_sched) {
