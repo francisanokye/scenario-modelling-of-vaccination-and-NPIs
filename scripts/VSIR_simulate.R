@@ -9,8 +9,8 @@ time_steps <- 200L
 tvec       <- seq_len(time_steps) 
 
 # piece-wise beta
-beta_break <- 60
-beta_sched <- ifelse(tvec < beta_break, 0.4, 0.2)
+beta_break <- 150
+beta_sched <- ifelse(tvec < beta_break, 0.2, 0.4)
 
 nu      <- 0.01                     # baseline per-capita vaccination rate
 vax_end <- time_steps %/% 2L        # scenario 2 finishes halfway (t = 100)
