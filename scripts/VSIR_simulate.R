@@ -7,9 +7,18 @@ spec <- rdsRead()
 time_steps <- 500L
 
 # piece-wise beta
+<<<<<<< HEAD
 beta_sched <- c(0.2,0.2,0.3)
 # beta_sched <- c(0.2,0.2,0.2)
+=======
+<<<<<<< HEAD
+beta_break <- 150
+beta_sched <- ifelse(tvec < beta_break, 0.2, 0.4)
+=======
+beta_sched <- c(0.2,0.2,0.4)
+>>>>>>> a0c220084d9f4ea94c966fc01b07c379ff1f49ab
 beta_times <- c(1,2, 200)
+>>>>>>> 2afcb064cd2610e65d15a6db282d5c7e27573d78
 
 nu      <- 0.01                     # baseline per-capita vaccination rate
 vax_end <- time_steps %/% 2L        # scenario 2 finishes halfway (t = 100)
