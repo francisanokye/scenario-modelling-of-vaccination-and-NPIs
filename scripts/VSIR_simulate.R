@@ -4,10 +4,11 @@ library(shellpipes)
 
 spec <- rdsRead()
 
-time_steps <- 300L
+time_steps <- 500L
 
 # piece-wise beta
-beta_sched <- c(0.2,0.2,0.4)
+beta_sched <- c(0.2,0.2,0.3)
+# beta_sched <- c(0.2,0.2,0.2)
 beta_times <- c(1,2, 200)
 
 nu      <- 0.01                     # baseline per-capita vaccination rate
@@ -18,7 +19,7 @@ vax1_sched <- c(nu ,nu, nu)
 
 vax2_sched <- c(2*nu,2*nu,0)
 
-vax_times <- c(1,2, 150)
+vax_times <- c(1,2, 80)
 
 # insert beta and vax_rate 
 make_scenario <- function(spec, vax_sched) {
@@ -42,7 +43,7 @@ spec_s1 <- make_scenario(spec, vax1_sched)
 spec_s2 <- make_scenario(spec, vax2_sched)
 
 # simulation of each scenario
-outputs <- c("inc", "cinc","beta_thing", "vax_thing","Vbox")
+outputs <- c("inc", "cinc","beta_thing", "vax_thing","cincprop","cvax")
 sim_scenario <- function(scenario_spec, label) {
   (mp_simulator(
     model = scenario_spec
@@ -58,7 +59,7 @@ sim_scenario <- function(scenario_spec, label) {
 
 gg <- (ggplot(
   filter(sim, 
-    matrix %in% c("cinc", "inc", "beta_thing", "vax_thing","Vbox"))
+    matrix %in% outputs)
     , aes(time, value, colour = scenario))
   + geom_line()
   + facet_wrap(~matrix, scales = "free_y")
