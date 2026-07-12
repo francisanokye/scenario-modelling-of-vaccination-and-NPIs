@@ -113,13 +113,24 @@ impmakeR += vacsim
 # vax_faster_rate.vacsim.Rout: vacsim.R
 # vax_slower_rate.vacsim.Rout: vacsim.R
 # vax_national_rate.vacsim.Rout: vacsim.R
-%.vacsim.Rout: vacsim.R beta_als4.betasim.rda %.rda constrain_params.rda
+# %.vacsim.Rout: vacsim.R beta_als4.betasim.rda %.rda constrain_params.rda
+# %.vacsim.Rout: vacsim.R base_beta.betasim.rda %.rda constrain_params.rda
+# policy_neutral.newRc.Rout: newRc.R 
+# %.vacsim.Rout: vacsim.R beta_als4.betasim.rda %.rda constrain_params.rda
+%.vacsim.Rout: vacsim.R policy_neutral.betasim.rda %.rda constrain_params.rda
 	$(pipeR)
 
-#combo_vacsim.Rout: combo_vacsim.R vax_actual_boosters.vacsim.rds vax_early_boosters.vacsim.rds vax_faster_rate.vacsim.rds vax_slower_rate.vacsim.rds vax_national_rate.vacsim.rds
-#	$(pipeR)
+# vax_actual_boosters.base.vacsim.Rout: vacsim.R
+%.base.vacsim.Rout: vacsim.R base_beta.betasim.rda %.rda constrain_params.rda
+	$(pipeR)
 
-combo_vacsim.Rout: combo_vacsim.R vax_actual_boosters.vacsim.rds vax_faster_rate.vacsim.rds vax_faster_rate.R
+%.als4.vacsim.Rout: vacsim.R beta_als4.betasim.rda %.rda constrain_params.rda
+	$(pipeR)
+
+%.pn.vacsim.Rout: vacsim.R policy_neutral.betasim.rda %.rda constrain_params.rda
+	$(pipeR)
+
+combo_vacsim.Rout: combo_vacsim.R vax_actual_boosters.base.vacsim.rds vax_early_boosters.base.vacsim.rds vax_faster_rate.base.vacsim.rds vax_slower_rate.base.vacsim.rds vax_national_rate.base.vacsim.rds vax_actual_boosters.als4.vacsim.rds vax_early_boosters.als4.vacsim.rds vax_faster_rate.als4.vacsim.rds vax_slower_rate.als4.vacsim.rds vax_national_rate.als4.vacsim.rds vax_actual_boosters.pn.vacsim.rds vax_early_boosters.pn.vacsim.rds vax_faster_rate.pn.vacsim.rds vax_slower_rate.pn.vacsim.rds vax_national_rate.pn.vacsim.rds
 	$(pipeR)
 
 
