@@ -35,6 +35,6 @@ model_outputs <- c(
   "cum_booster"
 )
 
-model_outputs <- c("inc", "cum_inc_total","boosterbox","incS","incv2","incv3","V2","V3","booster_shot")
+model_outputs <- c("inc", "cum_inc_total","boosterbox","incS","incv2","incv3","V2","V3","booster_shot","beta_thing")
 
 saveEnvironment()

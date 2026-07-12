@@ -113,7 +113,7 @@ impmakeR += vacsim
 # vax_faster_rate.vacsim.Rout: vacsim.R
 # vax_slower_rate.vacsim.Rout: vacsim.R
 # vax_national_rate.vacsim.Rout: vacsim.R
-%.vacsim.Rout: vacsim.R calibrate.rds %.rda constrain_params.rda
+%.vacsim.Rout: vacsim.R beta_als4.betasim.rda %.rda constrain_params.rda
 	$(pipeR)
 
 #combo_vacsim.Rout: combo_vacsim.R vax_actual_boosters.vacsim.rds vax_early_boosters.vacsim.rds vax_faster_rate.vacsim.rds vax_slower_rate.vacsim.rds vax_national_rate.vacsim.rds

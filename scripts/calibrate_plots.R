@@ -33,4 +33,10 @@ trajs <- (ggplot(sims, aes(date, value))
 	+ facet_wrap(~matrix, scales = "free")
 )
 
+#print(trajs)
+
+png("../figures/calibration_plots.png", width = 5000, height = 3500, res = 300, bg = "white",type = "cairo")
 print(trajs)
+dev.off()
+
+

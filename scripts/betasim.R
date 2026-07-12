@@ -21,3 +21,4 @@ newsim <- (newspec
 print(newsim)
 
 rdsSave(newsim)
+saveVars(newspec)
