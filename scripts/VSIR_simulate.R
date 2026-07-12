@@ -4,10 +4,16 @@ library(shellpipes)
 
 spec <- rdsRead()
 
-time_steps <- 500L
+time_steps <- 300L
 
+<<<<<<< HEAD
 beta_sched <- c(0.2,0.2,0.3)
 # beta_sched <- c(0.2,0.2,0.2)
+=======
+# piece-wise beta
+beta_break <- 150
+beta_sched <- c(0.2,0.2,0.4)
+>>>>>>> c6d15a02f79509efd16d53838ac0495774dd32cd
 beta_times <- c(1,2, 200)
 
 nu      <- 0.01                     # baseline per-capita vaccination rate
@@ -18,7 +24,11 @@ vax1_sched <- c(nu ,nu, nu)
 
 vax2_sched <- c(2*nu,2*nu,0)
 
+<<<<<<< HEAD
 vax_times <- c(1,2, 90)
+=======
+vax_times <- c(1,2, 150)
+>>>>>>> c6d15a02f79509efd16d53838ac0495774dd32cd
 
 # insert beta and vax_rate 
 make_scenario <- function(spec, vax_sched) {
@@ -42,7 +52,7 @@ spec_s1 <- make_scenario(spec, vax1_sched)
 spec_s2 <- make_scenario(spec, vax2_sched)
 
 # simulation of each scenario
-outputs <- c("inc", "cinc","beta_thing", "vax_thing","cincprop","cvax")
+outputs <- c("inc", "cinc","beta_thing", "vax_thing","Vbox")
 sim_scenario <- function(scenario_spec, label) {
   (mp_simulator(
     model = scenario_spec
@@ -58,7 +68,7 @@ sim_scenario <- function(scenario_spec, label) {
 
 gg <- (ggplot(
   filter(sim, 
-    matrix %in% outputs)
+    matrix %in% c("cinc", "inc", "beta_thing", "vax_thing","Vbox"))
     , aes(time, value, colour = scenario))
   + geom_line()
   + facet_wrap(~matrix, scales = "free_y")
