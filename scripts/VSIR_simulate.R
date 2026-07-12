@@ -4,11 +4,23 @@ library(tidyverse); theme_set(theme_bw())
 library(shellpipes)
 
 spec <- rdsRead()
+
 time_steps <- 300L
 
 ## piece-wise beta: 0.2 early, stepping up to 0.4 at t = 200
 beta_sched <- c(0.2, 0.2, 0.4)
 beta_times <- c(1, 2, 200)
+
+time_steps <- 500L
+
+# piece-wise beta
+beta_sched <- c(0.2,0.2,0.3)
+# beta_sched <- c(0.2,0.2,0.2)
+
+beta_break <- 150
+beta_sched <- ifelse(tvec < beta_break, 0.2, 0.4)
+beta_sched <- c(0.2,0.2,0.4)
+beta_times <- c(1,2, 200)
 
 nu <- 0.01  # baseline per-capita vaccination rate
 
@@ -18,6 +30,7 @@ vax1_sched <- c(nu, nu, nu)
 vax2_sched <- c(2 * nu, 2 * nu, 0)
 
 vax_times  <- c(1, 2, 150)
+vax_times <- c(1,2, 80)
 
 ## insert beta and vax_rate
 make_scenario <- function(spec, vax_sched, vax_times) {
@@ -40,6 +53,8 @@ make_scenario <- function(spec, vax_sched, vax_times) {
 
 # simulation of each scenario
 outputs <- c("inc", "cinc", "beta_thing", "vax_thing", "Vbox")
+outputs <- c("inc", "cinc","beta_thing", "vax_thing","cincprop","cvax")
+
 sim_scenario <- function(scenario_spec, label) {
   (mp_simulator(
     model = scenario_spec
@@ -82,6 +97,7 @@ check <- (sim
           |> filter(matrix == "Vbox", time == max(time))
           |> select(scenario, total_vaccinated = value)
 )
+
 print(as.data.frame(check))
 
 gg <- (ggplot(
@@ -92,6 +108,7 @@ gg <- (ggplot(
   + facet_wrap(~matrix, scales = "free_y")
   + theme(legend.position = "bottom")
 )
+
 print(gg)
 
 rdsSave(sim)
