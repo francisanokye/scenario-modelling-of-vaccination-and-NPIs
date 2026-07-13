@@ -140,8 +140,8 @@ Clone the repository, then fetch the `makestuff` build framework, which is not c
 the repository and is cloned automatically on first run:
 
 ```bash
-git clone <your-repository-url>
-cd <project-folder>
+git clone https://github.com/francisanokye/scenario-modelling-of-vaccination-and-NPIs.git>
+cd scenario-modelling-of-vaccination-and-NPIs/scripts/
 
 # Fetch the makestuff build framework
 make makestuff/00.stamp
