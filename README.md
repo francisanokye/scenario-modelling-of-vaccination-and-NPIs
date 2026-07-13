@@ -156,21 +156,6 @@ git clone --depth 1 https://github.com/dushoff/makestuff
 You should now have a `makestuff/` folder beside the `Makefile`. Errors mentioning an
 undefined `$(pipeR)` or missing includes mean `makestuff` is absent — repeat this step.
 
-**Pin the R environment (strongly recommended).** To make the analysis reproducible across
-machines and time, capture exact package versions with
-[`renv`](https://rstudio.github.io/renv/):
-
-```r
-# once, to create renv.lock capturing every package version:
-install.packages("renv"); renv::init()
-# on another machine, to restore the identical environment:
-renv::restore()
-```
-
-Commit the resulting `renv.lock` to the repository. At minimum, record `sessionInfo()`
-output alongside your results so package versions can be reconstructed. Because `macpan2`
-and `shellpipes` are installed from GitHub, also record the exact commit or release used.
-
 ---
 
 ## Data availability
