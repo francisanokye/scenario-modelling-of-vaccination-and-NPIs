@@ -138,7 +138,6 @@ update_vax_spec_beta <- function(spec, new_beta) {
   
   spec |>
     mp_tmb_delete(phase = "before", at = 26L) |>
-    mp_tmb_delete(phase = "before", at = 26L) |>
     mp_tmb_insert(
       default = list(
         timeseries_beta = new_beta

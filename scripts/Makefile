@@ -45,35 +45,34 @@ calibrate_plots.Rout: calibrate_plots.R calibrate.rds seroprevdata.rds fitsero.r
 scenario_params.Rout: scenario_params.R constrain_params.rda
 	$(pipeR)
 
-base_beta.Rout: base_beta.R calibrate.rds scenario_params.rda
+base.Rout: base.R calibrate.rds scenario_params.rda
 	$(pipeR)
 
-beta_als4.Rout: beta_als4.R base_beta.rds scenario_params.rda
+strict_npis.Rout: strict_npis.R base.rds scenario_params.rda
 	$(pipeR)
 
-policy_neutral.Rout: policy_neutral.R base_beta.rds scenario_params.rda
+no_npis.Rout: no_npis.R base.rds scenario_params.rda
 	$(pipeR)
 
- 
 Rc.Rout: Rc.R calibrate.rds params.rda
 	$(pipeR)
 
 impmakeR += newRc
 
-# prefix with beta type and run eg. policy_neutral.newRc.Rout 
+# prefix with beta type and run eg. no_npis.newRc.Rout 
 %.newRc.Rout: newRc.R %.rds Rc.rda params.rda
 	$(pipeR)
 
-combo_newRc.Rout: combo_newRc.R base_beta.newRc.rds beta_als4.newRc.rds policy_neutral.newRc.rds constrain_params.rda 
+combo_newRc.Rout: combo_newRc.R base.newRc.rds strict_npis.newRc.rds no_npis.newRc.rds constrain_params.rda 
 	$(pipeR)
 
 impmakeR += betasim
 
-# prefix with beta type and run eg. policy_neutral.betasim.Rout 
+# prefix with beta type and run eg. no_npis.betasim.Rout 
 %.betasim.Rout: betasim.R calibrate.rds %.rds constrain_params.rda
 	$(pipeR)
 
-combo_betasim.Rout: combo_betasim.R base_beta.betasim.rds beta_als4.betasim.rds policy_neutral.betasim.rds
+combo_betasim.Rout: combo_betasim.R base.betasim.rds strict_npis.betasim.rds no_npis.betasim.rds
 	$(pipeR)
 
 # vaccination scenarios
@@ -94,33 +93,47 @@ vax_national_rate.Rout: vax_national_rate.R ../data/vaccination-coverage-map.csv
 
 impmakeR += vacsim
 
-%.vacsim.Rout: vacsim.R policy_neutral.betasim.rda %.rda constrain_params.rda
+%.vacsim.Rout: vacsim.R no_npis.betasim.rda %.rda constrain_params.rda
 	$(pipeR)
 
-%.base.vacsim.Rout: vacsim.R base_beta.betasim.rda %.rda constrain_params.rda
+%.base.vacsim.Rout: vacsim.R base.betasim.rda %.rda constrain_params.rda
 	$(pipeR)
 
-%.als4.vacsim.Rout: vacsim.R beta_als4.betasim.rda %.rda constrain_params.rda
+%.strict_npis.vacsim.Rout: vacsim.R strict_npis.betasim.rda %.rda constrain_params.rda
 	$(pipeR)
 
-%.pn.vacsim.Rout: vacsim.R policy_neutral.betasim.rda %.rda constrain_params.rda
+%.no_npis.vacsim.Rout: vacsim.R no_npis.betasim.rda %.rda constrain_params.rda
 	$(pipeR)
 
 combo_vacsim.Rout: combo_vacsim.R vax_actual_boosters.base.vacsim.rds vax_early_boosters.base.vacsim.rds \
 	vax_faster_rate.base.vacsim.rds vax_slower_rate.base.vacsim.rds vax_national_rate.base.vacsim.rds \
-	vax_actual_boosters.als4.vacsim.rds vax_early_boosters.als4.vacsim.rds vax_faster_rate.als4.vacsim.rds \
-	vax_slower_rate.als4.vacsim.rds vax_national_rate.als4.vacsim.rds vax_actual_boosters.pn.vacsim.rds \
-	vax_early_boosters.pn.vacsim.rds vax_faster_rate.pn.vacsim.rds vax_slower_rate.pn.vacsim.rds vax_national_rate.pn.vacsim.rds
+	vax_actual_boosters.strict_npis.vacsim.rds vax_early_boosters.strict_npis.vacsim.rds vax_faster_rate.strict_npis.vacsim.rds \
+	vax_slower_rate.strict_npis.vacsim.rds vax_national_rate.strict_npis.vacsim.rds vax_actual_boosters.no_npis.vacsim.rds \
+	vax_early_boosters.no_npis.vacsim.rds vax_faster_rate.no_npis.vacsim.rds vax_slower_rate.no_npis.vacsim.rds vax_national_rate.no_npis.vacsim.rds
 	$(pipeR)
 
-# incidence panels
-incidence_plot.Rout: incidence_plot.R params.rda
+# incidence plot
+incidence_plot.Rout: incidence_plot.R combo_vacsim.rds constrain_params.rda
 	$(pipeR)
 
 # severity bar chart 
-severity_plot.Rout: severity_plot.R params.rda
+severity_plot.Rout: severity_plot.R combo_vacsim.rds constrain_params.rda
+	$(pipeR)
+
+# strict npi duration
+npi_duration.Rout: npi_duration.R calibrate.rds base.rds scenario_params.rda vax_actual_boosters.rda vax_early_boosters.rda vax_faster_rate.rda \
+	vax_slower_rate.rda vax_national_rate.rda constrain_params.rda fitsero.rds
+	$(pipeR)
+
+# strict npi duration with sensitivity
+sensitivity_npi_duration.Rout: sensitivity_npi_duration.R calibrate.rds base.rds scenario_params.rda vax_actual_boosters.rda vax_early_boosters.rda vax_faster_rate.rda \
+	vax_slower_rate.rda vax_national_rate.rda constrain_params.rda fitsero.rds
 	$(pipeR)
 	
+# percentage of the population vaccinated at start
+vax_snapshot.Rout: vax_snapshot.R combo_vacsim.rds constrain_params.rda
+	$(pipeR)
+
 Ignore += makestuff
 msrepo = https://github.com/dushoff
 

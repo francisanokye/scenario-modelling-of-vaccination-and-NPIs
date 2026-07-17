@@ -25,15 +25,28 @@ print(head(serodat))
 print(head(fitsero))
 
 trajs <- (ggplot(sims, aes(date, value))
-	+ geom_line(linewidth = 1,color="red")
+	+ geom_line(linewidth = 2,color="red")
 	+ geom_point(data=serodat)
 	+ geom_point(data=fitsero)
-	+ geom_point(data = housedat,color="blue")
+	+ geom_point(data = housedat,color="blue", size = 5)
 	+ geom_ribbon(aes(ymin = conf.low, ymax = conf.high), alpha = 0.4)
 	+ facet_wrap(~matrix, scales = "free")
+	+ theme(
+	  axis.text.x        = element_text(size = 25, hjust = 0.5),
+	  axis.text.y        = element_text(size = 25),
+	  axis.title.y       = element_text(size = 25),
+	  legend.position    = "bottom",
+	  legend.justification = "center",
+	  legend.direction   = "vertical",
+	  strip.text         = element_text(size = 25),
+	  strip.background   = element_blank(),
+	  legend.text        = element_text(size = 25),
+	  legend.background  = element_blank(),
+	  panel.grid.major.x = element_blank(),
+	  plot.background    = element_blank(),
+	  plot.margin        = margin(12, 35, 12, 12)
+	)
 )
-
-#print(trajs)
 
 png("../figures/calibration_plots.png", width = 5000, height = 3500, res = 300, bg = "white",type = "cairo")
 print(trajs)

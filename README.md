@@ -20,16 +20,11 @@ and the full analysis is orchestrated as a dependency-tracked `make` pipeline us
 3. [System requirements](#3-system-requirements)
 4. [Installation and environment capture](#4-installation-and-environment-capture)
 5. [Data availability](#5-data-availability)
-6. [Reproducibility and determinism](#6-reproducibility-and-determinism)
-7. [How the pipeline works](#7-how-the-pipeline-works)
-8. [Reproducing the analysis, stage by stage](#8-reproducing-the-analysis-stage-by-stage)
-9. [Pattern-rule (`%`) targets](#9-pattern-rule--targets)
-10. [One-command reproduction and verification](#10-one-command-reproduction-and-verification)
-11. [Runtime and hardware expectations](#11-runtime-and-hardware-expectations)
-12. [Troubleshooting](#12-troubleshooting)
-13. [Citation](#13-citation)
-14. [License](#14-license)
-15. [Funding and acknowledgements](#15-funding-and-acknowledgements)
+6. [Reproducibility - How the pipeline works](#6-reproducibility)
+7. [Pattern-rule (`%`) targets](#9-pattern-rule--targets)
+8. [One-command reproduction and verification](#10-one-command-reproduction-and-verification)
+9. [Troubleshooting](#12-troubleshooting)
+10. [Citation](#13-citation)
 
 ---
 

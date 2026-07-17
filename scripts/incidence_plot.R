@@ -15,45 +15,98 @@ options(scipen = 9999)
 
 loadEnvironments()
 
-incidence_df  <- results_df |> filter(date >= omicron_start)
-cumulative_df <- results_df |> filter(date >= omicron_start)
+# max that returns NA (not -Inf) when all values are missing
+if (!exists("max_or_na")) {
+  max_or_na <- function(x, ...) {
+    x <- x[!is.na(x)]
+    if (length(x) == 0) NA_real_ else max(x, ...)
+  }
+}
 
-# shared y-axis limits 
-ab_ymax <- (incidence_df 
+if (!exists("scenario_cols")) {
+  scenario_cols <- c(
+    "Actual Boosters" = "#4D4D4D",
+    "Early Boosters"  = "#1f78b4",
+    "Faster Boosters" = "#ff7f00",
+    "Slower Boosters" = "magenta",
+    "National Rate"   = "#33a02c"
+  )
+}
+
+# per-scenario dose-group colors: each element names "≤2 Doses" and "Booster"
+if (!exists("scenario_dose_cols")) {
+  scenario_dose_cols <- list(
+    "Actual Boosters" = c("≤2 Doses" = "grey70", "Booster" = "#4D4D4D"),
+    "Early Boosters"  = c("≤2 Doses" = "#a6cee3", "Booster" = "#1f78b4"),
+    "Faster Boosters" = c("≤2 Doses" = "#fdbf6f", "Booster" = "#ff7f00"),
+    "Slower Boosters" = c("≤2 Doses" = "#E8B6D2",  "Booster" = "magenta"),
+    "National Rate"   = c("≤2 Doses" = "#b2df8a", "Booster" = "#33a02c")
+  )
+}
+# "Slower Boosters" = c("≤2 Doses" = "#E8B6D2",  "Booster" = "magenta"),
+# "Slower Boosters" = c("≤2 Doses" = "#fb9a99", "Booster" = "#e31a1c"),
+combosims <- bind_rows(rdsReadList())
+
+combosims <- (combosims 
+  |> mutate(vax_scenario = recode(as.character(vac)
+    , "vax_actual_boosters" = "Actual Boosters"
+    , "vax_early_boosters"  = "Early Boosters"
+    , "vax_faster_rate"     = "Faster Boosters"
+    , "vax_slower_rate"     = "Slower Boosters"
+    , "vax_national_rate"   = "National Rate"
+    )
+    , policy = recode(as.character(beta)
+    , "strict_npis" = "Strict NPIs"
+    , "no_npis"   = "No NPIs"
+    , "base" = "Actual"
+    )
+    , date = burn_in_start+ (time - 1)
+  )
+)
+
+incidence_df  <- (combosims 
+  |> filter(matrix %in% c("inc_booster", "inc_leq2dose", "inc")
+    , date >= omicron_start
+    )
+  )
+
+cumulative_df <- (combosims 
+  |> filter(matrix %in% c("cum_inc_total", "cum_inc_leq2dose", "cum_inc_booster")
+    , date >= omicron_start
+    )
+  )
+
+# shared y-axis limits
+ab_ymax <- (incidence_df
   |> filter(vax_scenario == "Actual Boosters"
-    , policy %in% c("No-ALS Only", "ALS-4 Only")
+    , policy %in% c("No NPIs", "Strict NPIs")
     , matrix %in% c("inc_leq2dose", "inc_booster")
-  ) 
-  |> group_by(policy, date) 
-  |> summarise(total_inc = sum(value, na.rm = TRUE)
-    , .groups = "drop"
-  ) 
-  |> summarise(ymax = max_or_na(total_inc)) 
+  )
+  |> group_by(policy, date)
+  |> summarise(total_inc = sum(value, na.rm = TRUE), .groups = "drop")
+  |> summarise(ymax = max_or_na(total_inc))
   |> pull(ymax)
 )
 
-gh_ymax <- (incidence_df 
-  |> filter(policy == "ALS-4 Only"
+gh_ymax <- (incidence_df
+  |> filter(policy == "Strict NPIs"
     , vax_scenario %in% c("Early Boosters", "Actual Boosters")
     , matrix %in% c("inc_leq2dose", "inc_booster")
-  ) 
-  |> group_by(vax_scenario, date) 
-  |> summarise(total_inc = sum(value, na.rm = TRUE)
-    , .groups = "drop"
-  ) 
-  |> summarise(ymax = max_or_na(total_inc)) 
+  )
+  |> group_by(vax_scenario, date)
+  |> summarise(total_inc = sum(value, na.rm = TRUE), .groups = "drop")
+  |> summarise(ymax = max_or_na(total_inc))
   |> pull(ymax)
 )
 
-de_ymax <- (incidence_df 
-  |> filter(policy == "ALS-4 Only", vax_scenario %in% c("Slower Boosters", "Faster Boosters")
+de_ymax <- (incidence_df
+  |> filter(policy == "Strict NPIs"
+    , vax_scenario %in% c("Slower Boosters", "Faster Boosters")
     , matrix %in% c("inc_leq2dose", "inc_booster")
-  ) 
-  |> group_by(vax_scenario, date) 
-  |> summarise(total_inc = sum(value, na.rm = TRUE)
-    , .groups = "drop"
-  ) 
-  |> summarise(ymax = max_or_na(total_inc)) 
+  )
+  |> group_by(vax_scenario, date)
+  |> summarise(total_inc = sum(value, na.rm = TRUE), .groups = "drop")
+  |> summarise(ymax = max_or_na(total_inc))
   |> pull(ymax)
 )
 
@@ -83,11 +136,14 @@ make_shaded_incidence_plot <- function(
     filter(
       policy       == policy_name,
       vax_scenario == scenario_name,
-      matrix       %in% c("inc_leq2dose", "inc_booster")
+      matrix       %in% c("inc", "inc_booster")
     ) |>
     select(date, matrix, value) |>
-    pivot_wider(names_from = matrix, values_from = value, values_fill = 0) |>
-    mutate(total_inc = inc_leq2dose + inc_booster)
+    pivot_wider(names_from = matrix, values_from = value, values_fill = 0)
+  
+  if (!"inc"         %in% names(plot_df)) plot_df$inc         <- numeric(nrow(plot_df))
+  if (!"inc_booster" %in% names(plot_df)) plot_df$inc_booster <- numeric(nrow(plot_df))
+  plot_df$total_inc <- plot_df$inc
   
   y_upper <- if (is.null(y_limit)) max_or_na(plot_df$total_inc) else y_limit
   
@@ -126,7 +182,7 @@ make_cumulative_policy_plot <- function(df, scenario_name, panel_tag) {
   plot_df <- df |>
     filter(
       vax_scenario == scenario_name,
-      policy %in% c("No-ALS Only", "ALS-4 Only"),
+      policy %in% c("No NPIs", "Strict NPIs"),
       matrix %in% c("cum_inc_leq2dose", "cum_inc_booster")
     ) |>
     mutate(
@@ -134,8 +190,8 @@ make_cumulative_policy_plot <- function(df, scenario_name, panel_tag) {
                           "cum_inc_leq2dose" = "≤2 Doses",
                           "cum_inc_booster"  = "Booster"),
       policy_label = recode(as.character(policy),
-                            "No-ALS Only" = "No NPIs",
-                            "ALS-4 Only"  = "Strict NPIs"),
+                            "No NPIs" = "No NPIs",
+                            "Strict NPIs"  = "Strict NPIs"),
       dose_group   = factor(dose_group,   levels = c("≤2 Doses", "Booster")),
       policy_label = factor(policy_label, levels = c("No NPIs", "Strict NPIs"))
     )
@@ -175,7 +231,7 @@ make_cumulative_policy_plot <- function(df, scenario_name, panel_tag) {
 make_cumulative_speed_plot <- function(df, panel_tag) {
   plot_df <- df |>
     filter(
-      policy == "ALS-4 Only",
+      policy == "Strict NPIs",
       vax_scenario %in% c("Slower Boosters", "Faster Boosters"),
       matrix %in% c("cum_inc_leq2dose", "cum_inc_booster")
     ) |>
@@ -220,24 +276,24 @@ make_cumulative_speed_plot <- function(df, panel_tag) {
 }
 
 # ---- build panels ----
-p_a <- make_shaded_incidence_plot(incidence_df, "Actual Boosters", "No-ALS Only",
+p_a <- make_shaded_incidence_plot(incidence_df, "Actual Boosters", "No NPIs",
                                   "(A)", "No NPIs",         c(0.60, 0.85), incidence_ymax, "solid")
-p_b <- make_shaded_incidence_plot(incidence_df, "Actual Boosters", "ALS-4 Only",
+p_b <- make_shaded_incidence_plot(incidence_df, "Actual Boosters", "Strict NPIs",
                                   "(B)", "Strict NPIs",     c(0.15, 0.85), incidence_ymax, "twodash")
 p_c <- make_cumulative_policy_plot(cumulative_df, "Actual Boosters", "(C)")
-p_d <- make_shaded_incidence_plot(incidence_df, "Slower Boosters", "ALS-4 Only",
+p_d <- make_shaded_incidence_plot(incidence_df, "Slower Boosters", "Strict NPIs",
                                   "(D)", "Slower Boosters", c(0.15, 0.85), incidence_ymax, "twodash")
-p_e <- make_shaded_incidence_plot(incidence_df, "Faster Boosters", "ALS-4 Only",
+p_e <- make_shaded_incidence_plot(incidence_df, "Faster Boosters", "Strict NPIs",
                                   "(E)", "Faster Boosters", c(0.15, 0.85), incidence_ymax, "twodash")
 p_f <- make_cumulative_speed_plot(cumulative_df, "(F)")
-p_g <- make_shaded_incidence_plot(incidence_df, "Early Boosters",  "ALS-4 Only",
+p_g <- make_shaded_incidence_plot(incidence_df, "Early Boosters",  "Strict NPIs",
                                   "(G)", "Early Boosters",  c(0.15, 0.85), incidence_ymax, "twodash")
-p_h <- make_shaded_incidence_plot(incidence_df, "Actual Boosters", "ALS-4 Only",
+p_h <- make_shaded_incidence_plot(incidence_df, "Actual Boosters", "Strict NPIs",
                                   "(H)", "Actual Boosters", c(0.15, 0.85), incidence_ymax, "twodash")
 
 plot_i_df <- incidence_df |>
   filter(
-    policy == "ALS-4 Only",
+    policy == "Strict NPIs",
     vax_scenario %in% c("Early Boosters", "Actual Boosters"),
     matrix %in% c("inc_leq2dose", "inc_booster")
   ) |>
@@ -279,4 +335,6 @@ figure1_3x3 <- (
   plot_layout(heights = c(1, 1, 1), widths = c(1, 1, 1)) &
   theme(plot.margin = margin(8, 35, 8, 8))
 
-save_png(file.path(fig_dir, "figure2.png"), figure1_3x3, width = 13500, height = 8000)
+png("../figures/incidence_plot.png", width = 13500, height = 8000, res = 300, bg = "white", type = "cairo")
+print(figure1_3x3)
+dev.off()

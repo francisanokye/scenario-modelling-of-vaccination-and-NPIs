@@ -76,8 +76,8 @@ flows <- list(
   cum_death_booster ~ cum_death_booster + death_booster,
   cum_death_total ~ cum_death_total + death_total,
   
-  newR_total ~ asymp_recov1 + asymp_recov2 + asymp_recov3 +
-    symp_recov1 + symp_recov2 + symp_recov3,
+  newR_total ~ asymp_recov1 + asymp_recov2 + asymp_recov3 + 
+               symp_recov1 + symp_recov2 + symp_recov3,
   
 #  sero_inc_total ~ inc,
   serop_total ~ R / N,

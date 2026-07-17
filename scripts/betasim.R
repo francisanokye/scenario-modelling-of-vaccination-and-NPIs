@@ -18,7 +18,5 @@ newsim <- (newspec
 	 |> mutate(beta = pipeStar())
 )
 
-print(newsim)
-
 rdsSave(newsim)
 saveVars(newspec)

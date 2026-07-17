@@ -11,22 +11,22 @@ library(magick)
 # input images 
 
 # img_path2 <- "../figures/booster_shots_policy.png"
-img_path1 <- "../figures/transmission_rate.png"
-img_path2 <- "../figures/fixed_reprod_numb.png"
-img_path3 <- "../figures/timevarying_props_reprod_numb.png"
+img_path1 <- "../figures/reprod_numb.png"
+img_path2 <- "../figures/vax_scenarios.png"
+# img_path3 <- "../figures/timevarying_props_reprod_numb.png"
 
 
 # read images (original resolution preserved)
 img1 <- image_read(img_path1)
 img2 <- image_read(img_path2)
-img3 <- image_read(img_path3)
+# img3 <- image_read(img_path3)
 
 
 # match widths by padding 
 w1 <- image_info(img1)$width
 w2 <- image_info(img2)$width
-w3 <- image_info(img3)$width
-target_w <- max(w1, w2, w3)
+# w3 <- image_info(img3)$width
+target_w <- max(w1, w2)
 
 pad_to_width <- function(img, target_w) {
   image_extent(
@@ -39,18 +39,39 @@ pad_to_width <- function(img, target_w) {
 
 img1 <- pad_to_width(img1, target_w)
 img2 <- pad_to_width(img2, target_w)
-img3 <- pad_to_width(img3, target_w)
+# img3 <- pad_to_width(img3, target_w)
 
 
 # stack vertically (original heights kept) 
-combined_img <- image_append(c(img1, img2, img3), stack = TRUE)
+combined_img <- image_append(c(img1, img2), stack = TRUE)
 
 # save stacked image (no resizing, no re-rendering) 
 image_write(
   combined_img,
-  path   = "../figures/timevarying_props.png",
+  path   = "../figures/figure1.png",
   format = "png"
 )
 
+```
+
+
+
+```{r}
+library(magick)
+
+img_path1 <- "../figures/reprod_numb.png"    # Panel A (reference)
+img_path2 <- "../figures/vax_scenarios.png"  # Panel B
+
+img1 <- image_read(img_path1)
+img2 <- image_read(img_path2)
+
+# match Panel B to Panel A's width by scaling (not padding)
+target_w <- image_info(img1)$width
+img2 <- image_resize(img2, geometry = paste0(target_w, "x"))
+
+# stack: Panel A on top, Panel B below
+combined_img <- image_append(c(img1, img2), stack = TRUE)
+
+image_write(combined_img, path = "../figures/figure1.png", format = "png")
 ```
 

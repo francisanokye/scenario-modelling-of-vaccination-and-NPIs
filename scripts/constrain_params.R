@@ -13,6 +13,7 @@ booster_start <- as.Date("2021-11-08")
 early_start_date <- as.Date("2021-10-04")
 
 NL_POP <- 510550
+CA_POP <- 36991981
 booster_max <- 296186
 booster_max <- 297000
 upper_plot_time <- 300
@@ -25,7 +26,7 @@ time_analysis_end_date	<- as.numeric(analysis_end - burn_in_start) + 1
 
 
 model_outputs <- c(
-  "incS", "incv2", "incv3", "inc",
+  "incS", "incv2", "incv3", "inc", "S1", "V2", "V3",
   "inc_leq2dose", "inc_booster",
   "cum_inc_leq2dose", "cum_inc_booster", "cum_inc_total",
   "hosp_leq2dose", "hosp_booster", "hosp_total",
@@ -34,7 +35,5 @@ model_outputs <- c(
   "cum_death_leq2dose", "cum_death_booster", "cum_death_total",
   "cum_booster"
 )
-
-model_outputs <- c("inc", "cum_inc_total","boosterbox","incS","incv2","incv3","V2","V3","booster_shot","beta_thing")
 
 saveEnvironment()

@@ -5,12 +5,9 @@ library(shellpipes)
 
 loadEnvironments()
 
-CA_POP <- 36991981
-
-#####################################################################
-## Load PHAC vaccination data for NL
-#####################################################################
-
+# ------------------------------------------------------------
+#  Load PHAC vaccination data
+# ------------------------------------------------------------
 dat <- csvRead()
 
 Canada <- (dat 
@@ -81,9 +78,7 @@ new_booster<- (can_boosterframe
 	)
 )
 
-print(new_booster)
-
-print(new_booster |> ggplot(aes(date,daily_rate)) + geom_line() +geom_point())
+# print(new_booster |> ggplot(aes(date,daily_rate)) + geom_line() +geom_point())
 
 saveEnvironment()
 
