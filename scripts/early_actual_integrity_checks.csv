@@ -1,0 +1,7 @@
+"vaccination","policy","max_abs_population_error","max_abs_incidence_error","final_administered_boosters"
+"Actual Boosters","Actual NPIs",0.000000000698491930961609,0,292590.576028134
+"Actual Boosters","No NPIs",0.000000000407453626394272,0,291434.096727539
+"Actual Boosters","Strict NPIs",0.000000000756699591875076,0,292637.211152069
+"Early Boosters","Actual NPIs",0.000000000523868948221207,0,292610.497595577
+"Early Boosters","No NPIs",0.000000000698491930961609,0,292588.725210944
+"Early Boosters","Strict NPIs",0.00000000116415321826935,0,292611.955151434

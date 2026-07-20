@@ -1,0 +1,418 @@
+suppressPackageStartupMessages({
+  library(dplyr)
+  library(tidyr)
+  library(ggplot2)
+  library(ggthemes)
+  library(shellpipes)
+  library(scales)
+  library(grid)
+  library(patchwork)
+  library(lubridate)
+})
+
+options(dplyr.summarise.inform = FALSE)
+options(scipen = 9999)
+
+loadEnvironments()
+
+# max that returns NA (not -Inf) when all values are missing
+if (!exists("max_or_na")) {
+  max_or_na <- function(x, ...) {
+    x <- x[!is.na(x)]
+    if (length(x) == 0) NA_real_ else max(x, ...)
+  }
+}
+
+if (!exists("scenario_cols")) {
+  scenario_cols <- c(
+    "Actual Boosters" = "#4D4D4D",
+    "Early Boosters"  = "#1f78b4",
+    "Faster Boosters" = "#ff7f00",
+    "Slower Boosters" = "magenta",
+    "National Rate"   = "#33a02c"
+  )
+}
+
+# per-scenario dose-group colors: each element names "≤2 Doses" and "Booster"
+if (!exists("scenario_dose_cols")) {
+  scenario_dose_cols <- list(
+    "Actual Boosters" = c("≤2 Doses" = "grey70", "Booster" = "#4D4D4D"),
+    "Early Boosters"  = c("≤2 Doses" = "#a6cee3", "Booster" = "#1f78b4"),
+    "Faster Boosters" = c("≤2 Doses" = "#fdbf6f", "Booster" = "#ff7f00"),
+    "Slower Boosters" = c("≤2 Doses" = "#E8B6D2",  "Booster" = "magenta"),
+    "National Rate"   = c("≤2 Doses" = "#b2df8a", "Booster" = "#33a02c")
+  )
+}
+# "Slower Boosters" = c("≤2 Doses" = "#E8B6D2",  "Booster" = "magenta"),
+# "Slower Boosters" = c("≤2 Doses" = "#fb9a99", "Booster" = "#e31a1c"),
+combosims <- bind_rows(rdsReadList())
+
+combosims <- (combosims 
+  |> mutate(vax_scenario = recode(as.character(vac)
+    , "vax_actual_boosters" = "Actual Boosters"
+    , "vax_early_boosters"  = "Early Boosters"
+    , "vax_faster_rate"     = "Faster Boosters"
+    , "vax_slower_rate"     = "Slower Boosters"
+    , "vax_national_rate"   = "National Rate"
+  )
+  , policy = recode(as.character(beta)
+    , "strict_npis" = "Strict NPIs"
+    , "no_npis"   = "No NPIs"
+    , "base" = "Actual"
+  )
+  , date = burn_in_start+ (time - 1)
+  )
+)
+
+incidence_df <- combosims |>
+  filter(
+    matrix %in% c("inc", "inc_booster"),
+    date >= omicron_start
+  ) |>
+  select(vac, beta, vax_scenario, policy, time, date, matrix, value) |>
+  pivot_wider(
+    names_from = matrix,
+    values_from = value,
+    values_fill = 0
+  ) |>
+  mutate(
+    inc_leq2dose = pmax(inc - inc_booster, 0)
+  ) |>
+  pivot_longer(
+    cols = c(inc, inc_leq2dose, inc_booster),
+    names_to = "matrix",
+    values_to = "value"
+  )
+
+cumulative_df <- combosims |>
+  filter(
+    matrix %in% c("cum_inc_total", "cum_inc_booster")
+  ) |>
+  select(vac, beta, vax_scenario, policy, time, date, matrix, value) |>
+  pivot_wider(
+    names_from = matrix,
+    values_from = value,
+    values_fill = 0
+  ) |>
+  group_by(vac, beta, vax_scenario, policy) |>
+  arrange(date, .by_group = TRUE) |>
+  mutate(
+    baseline_cum_inc_total = {
+      baseline_values <- cum_inc_total[date <= omicron_start]
+      if (length(baseline_values) == 0) 0 else tail(baseline_values, 1)
+    },
+    baseline_cum_inc_booster = {
+      baseline_values <- cum_inc_booster[date <= omicron_start]
+      if (length(baseline_values) == 0) 0 else tail(baseline_values, 1)
+    },
+    cum_inc_total = pmax(cum_inc_total - baseline_cum_inc_total, 0),
+    cum_inc_booster = pmax(cum_inc_booster - baseline_cum_inc_booster, 0),
+    cum_inc_leq2dose = pmax(cum_inc_total - cum_inc_booster, 0)
+  ) |>
+  ungroup() |>
+  filter(date >= omicron_start) |>
+  select(
+    vac,
+    beta,
+    vax_scenario,
+    policy,
+    time,
+    date,
+    cum_inc_total,
+    cum_inc_leq2dose,
+    cum_inc_booster
+  ) |>
+  pivot_longer(
+    cols = c(cum_inc_total, cum_inc_leq2dose, cum_inc_booster),
+    names_to = "matrix",
+    values_to = "value"
+  )
+
+# shared y-axis limits
+ab_ymax <- (incidence_df
+  |> filter(vax_scenario == "Slower Boosters"
+    , policy %in% c("No NPIs", "Strict NPIs")
+    , matrix %in% c("inc_leq2dose", "inc_booster")
+  )
+  |> group_by(policy, date)
+  |> summarise(total_inc = sum(value, na.rm = TRUE), .groups = "drop")
+  |> summarise(ymax = max_or_na(total_inc))
+  |> pull(ymax)
+)
+
+de_ymax <- (incidence_df
+  |> filter(vax_scenario == "Faster Boosters"
+    , policy %in% c("No NPIs", "Strict NPIs")
+    , matrix %in% c("inc_leq2dose", "inc_booster")
+  )
+  |> group_by(policy, date)
+  |> summarise(total_inc = sum(value, na.rm = TRUE), .groups = "drop")
+  |> summarise(ymax = max_or_na(total_inc))
+  |> pull(ymax)
+)
+
+gh_ymax <- (incidence_df
+  |> filter(vax_scenario == "Early Boosters"
+    , policy %in% c("No NPIs", "Strict NPIs")
+    , matrix %in% c("inc_leq2dose", "inc_booster")
+  )
+  |> group_by(policy, date)
+  |> summarise(total_inc = sum(value, na.rm = TRUE), .groups = "drop")
+  |> summarise(ymax = max_or_na(total_inc))
+  |> pull(ymax)
+)
+
+jk_ymax <- (incidence_df
+  |> filter(vax_scenario == "National Rate"
+    , policy %in% c("No NPIs", "Strict NPIs")
+    , matrix %in% c("inc_leq2dose", "inc_booster")
+  )
+  |> group_by(policy, date)
+  |> summarise(total_inc = sum(value, na.rm = TRUE), .groups = "drop")
+  |> summarise(ymax = max_or_na(total_inc))
+  |> pull(ymax)
+)
+
+mn_ymax <- (incidence_df
+  |> filter(vax_scenario == "Actual Boosters"
+    , policy %in% c("No NPIs", "Strict NPIs")
+    , matrix %in% c("inc_leq2dose", "inc_booster")
+  )
+  |> group_by(policy, date)
+  |> summarise(total_inc = sum(value, na.rm = TRUE), .groups = "drop")
+  |> summarise(ymax = max_or_na(total_inc))
+  |> pull(ymax)
+)
+
+# plot helpers ----
+get_panel_cols <- function(scenario_name) {
+  cols <- scenario_dose_cols[[as.character(scenario_name)]]
+  if (is.null(cols)) stop("No dose colours defined for scenario: ", scenario_name)
+  cols
+}
+
+make_shaded_incidence_plot <- function(
+    df,
+    scenario_name,
+    policy_name,
+    panel_tag,
+    panel_title,
+    legend_position   = c(0.50, 0.85),
+    y_limit           = NULL,
+    boundary_linetype = "solid",
+    show_legend       = TRUE
+) {
+  panel_cols <- get_panel_cols(scenario_name)
+  
+  plot_df <- df |>
+    filter(
+      policy       == policy_name,
+      vax_scenario == scenario_name,
+      matrix       %in% c("inc_leq2dose", "inc_booster")
+    ) |>
+    select(date, matrix, value) |>
+    pivot_wider(names_from = matrix, values_from = value, values_fill = 0)
+  
+  if (!"inc_leq2dose" %in% names(plot_df)) plot_df$inc_leq2dose <- numeric(nrow(plot_df))
+  if (!"inc_booster"  %in% names(plot_df)) plot_df$inc_booster  <- numeric(nrow(plot_df))
+  
+  plot_df <- plot_df |>
+    mutate(
+      inc_leq2dose = pmax(inc_leq2dose, 0),
+      inc_booster  = pmax(inc_booster, 0),
+      total_inc    = inc_leq2dose + inc_booster
+    )
+  
+  y_upper <- if (is.null(y_limit)) max_or_na(plot_df$total_inc) else y_limit
+  
+  ggplot(plot_df, aes(x = date)) +
+    geom_ribbon(
+      aes(ymin = 0, ymax = inc_leq2dose, fill = "≤2 Doses")
+    ) +
+    geom_ribbon(
+      aes(ymin = inc_leq2dose, ymax = total_inc, fill = "Booster")
+    ) +
+    geom_line(aes(y = total_inc),    colour = "black", linewidth = 2, linetype = boundary_linetype) +
+    geom_line(aes(y = inc_leq2dose), colour = "black", linewidth = 2, linetype = boundary_linetype) +
+    geom_vline(xintercept = intervention_removed, linetype = "dashed", linewidth = 2) +
+    scale_fill_manual(values = panel_cols, breaks = c("Booster", "≤2 Doses")) +
+    scale_x_date(date_breaks = "1 month", date_labels = "%d %b %Y", expand = c(0.01, 0)) +
+    scale_y_continuous(labels = comma, expand = expansion(mult = c(0, 0.04))) +
+    coord_cartesian(ylim = c(0, y_upper * 1.06), clip = "off") +
+    labs(title = panel_title, x = NULL, y = "Daily incidence", fill = NULL, tag = panel_tag) +
+    theme_clean() +
+    theme(
+      axis.text.x          = element_text(size = 35, hjust = 1, angle = 45),
+      axis.text.y          = element_text(size = 35),
+      axis.title.y         = element_text(size = 35),
+      legend.position      = if (show_legend) legend_position else "none",
+      legend.justification = "center",
+      legend.direction     = "vertical",
+      legend.text          = element_text(size = 30),
+      legend.background    = element_blank(),
+      plot.title           = element_text(size = 45, hjust = 0.5),
+      panel.grid.major.x   = element_blank(),
+      plot.tag             = element_text(size = 45, face = "bold"),
+      plot.background      = element_blank(),
+      plot.margin          = margin(12, 35, 12, 12)
+    )
+}
+
+make_cumulative_policy_plot <- function(df, scenario_name, panel_tag) {
+  panel_cols <- get_panel_cols(scenario_name)
+  
+  plot_df <- df |>
+    filter(
+      vax_scenario == scenario_name,
+      policy %in% c("No NPIs", "Strict NPIs"),
+      matrix %in% c("cum_inc_leq2dose", "cum_inc_booster")
+    ) |>
+    mutate(
+      dose_group = recode(matrix,
+                          "cum_inc_leq2dose" = "≤2 Doses",
+                          "cum_inc_booster"  = "Booster"),
+      policy_label = recode(as.character(policy),
+                            "No NPIs" = "No NPIs",
+                            "Strict NPIs"  = "Strict NPIs"),
+      dose_group   = factor(dose_group,   levels = c("≤2 Doses", "Booster")),
+      policy_label = factor(policy_label, levels = c("No NPIs", "Strict NPIs"))
+    )
+  
+  ggplot(plot_df, aes(x = date, y = value, colour = dose_group,
+                      linetype = policy_label, group = interaction(dose_group, policy_label))) +
+    geom_line(linewidth = 3) +
+    scale_colour_manual(values = panel_cols, breaks = c("≤2 Doses", "Booster"), name = NULL) +
+    scale_linetype_manual(values = c("No NPIs" = "solid", "Strict NPIs" = "twodash"), name = NULL) +
+    scale_x_date(date_breaks = "1 month", date_labels = "%d %b %Y", expand = c(0.01, 0.08)) +
+    scale_y_continuous(labels = comma, expand = expansion(mult = c(0, 0.12))) +
+    coord_cartesian(clip = "off") +
+    labs(x = NULL, y = "Cumulative infections", tag = panel_tag) +
+    guides(
+      colour   = guide_legend(order = 1, override.aes = list(linewidth = 4, linetype = "solid")),
+      linetype = guide_legend(order = 2, override.aes = list(linewidth = 4, colour = "black"))
+    ) +
+    theme_clean() +
+    theme(
+      axis.text.x        = element_text(size = 35, hjust = 1, angle = 45),
+      axis.text.y        = element_text(size = 35),
+      axis.title.y       = element_text(size = 35),
+      legend.position    = "top",
+      legend.direction   = "horizontal",
+      legend.text        = element_text(size = 30),
+      legend.key.width   = unit(2, "cm"),
+      legend.background  = element_blank(),
+      legend.spacing.x   = unit(0.20, "cm"),
+      legend.margin      = margin(t = 0, r = 0, b = 0, l = 0),
+      panel.grid.major.x = element_blank(),
+      plot.tag           = element_text(size = 45, face = "bold"),
+      plot.background    = element_blank(),
+      plot.margin        = margin(12, 55, 12, 12)
+    )
+}
+
+make_cumulative_speed_plot <- function(df, panel_tag) {
+  plot_df <- df |>
+    filter(
+      policy == "Strict NPIs",
+      vax_scenario %in% c("Slower Boosters", "Faster Boosters"),
+      matrix %in% c("cum_inc_leq2dose", "cum_inc_booster")
+    ) |>
+    mutate(
+      dose_group = recode(matrix,
+                          "cum_inc_leq2dose" = "≤2 Doses",
+                          "cum_inc_booster"  = "Booster"),
+      vax_scenario = factor(as.character(vax_scenario), levels = c("Slower Boosters", "Faster Boosters")),
+      dose_group   = factor(dose_group, levels = c("≤2 Doses", "Booster"))
+    )
+  
+  ggplot(plot_df, aes(x = date, y = value, colour = vax_scenario,
+                      linetype = dose_group, group = interaction(vax_scenario, dose_group))) +
+    geom_line(linewidth = 3) +
+    scale_colour_manual(values = scenario_cols[c("Slower Boosters", "Faster Boosters")], name = NULL) +
+    scale_linetype_manual(values = c("≤2 Doses" = "solid", "Booster" = "twodash"), name = NULL) +
+    scale_x_date(date_breaks = "1 month", date_labels = "%d %b %Y", expand = c(0.01, 0.08)) +
+    scale_y_continuous(labels = comma, expand = expansion(mult = c(0, 0.12))) +
+    coord_cartesian(clip = "off") +
+    labs(x = NULL, y = "Cumulative infections", tag = panel_tag) +
+    guides(
+      colour   = guide_legend(order = 1, override.aes = list(linewidth = 4, linetype = "solid")),
+      linetype = guide_legend(order = 2, override.aes = list(linewidth = 4, colour = "black"))
+    ) +
+    theme_clean() +
+    theme(
+      axis.text.x        = element_text(size = 35, hjust = 1, angle = 45),
+      axis.text.y        = element_text(size = 35),
+      axis.title.y       = element_text(size = 35),
+      legend.position    = "top",
+      legend.direction   = "horizontal",
+      legend.text        = element_text(size = 30),
+      legend.key.width   = unit(2, "cm"),
+      legend.background  = element_blank(),
+      legend.spacing.x   = unit(0.20, "cm"),
+      legend.margin      = margin(t = 0, r = 0, b = 0, l = 0),
+      panel.grid.major.x = element_blank(),
+      plot.tag           = element_text(size = 45, face = "bold"),
+      plot.background    = element_blank(),
+      plot.margin        = margin(12, 55, 12, 12)
+    )
+}
+
+# ---- build panels ----
+p_a <- make_shaded_incidence_plot(incidence_df, "Slower Boosters", "No NPIs",
+                                  "(A)", "No NPIs",         c(0.60, 0.85), ab_ymax, "solid")
+p_b <- make_shaded_incidence_plot(incidence_df, "Slower Boosters", "Strict NPIs",
+                                  "(B)", "Strict NPIs",     c(0.15, 0.85), ab_ymax, "twodash")
+p_c <- make_cumulative_policy_plot(cumulative_df, "Slower Boosters", "(C)")
+
+p_d <- make_shaded_incidence_plot(incidence_df, "Faster Boosters", "No NPIs",
+                                  "(D)", "No NPIs",         c(0.60, 0.85), de_ymax, "solid")
+p_e <- make_shaded_incidence_plot(incidence_df, "Faster Boosters", "Strict NPIs",
+                                  "(E)", "Strict NPIs",     c(0.15, 0.85), de_ymax, "twodash")
+p_f <- make_cumulative_policy_plot(cumulative_df, "Faster Boosters", "(F)")
+
+p_g <- make_shaded_incidence_plot(incidence_df, "Early Boosters", "No NPIs",
+                                  "(G)", "No NPIs",         c(0.60, 0.85), gh_ymax, "solid")
+p_h <- make_shaded_incidence_plot(incidence_df, "Early Boosters", "Strict NPIs",
+                                  "(H)", "Strict NPIs",     c(0.15, 0.85), gh_ymax, "twodash")
+p_i <- make_cumulative_policy_plot(cumulative_df, "Early Boosters", "(I)")
+
+p_j <- make_shaded_incidence_plot(incidence_df, "National Rate", "No NPIs",
+                                  "(J)", "No NPIs",         c(0.60, 0.85), jk_ymax, "solid")
+p_k <- make_shaded_incidence_plot(incidence_df, "National Rate", "Strict NPIs",
+                                  "(K)", "Strict NPIs",     c(0.15, 0.85), jk_ymax, "twodash")
+p_l <- make_cumulative_policy_plot(cumulative_df, "National Rate", "(L)")
+
+p_m <- make_shaded_incidence_plot(incidence_df, "Actual Boosters", "No NPIs",
+                                  "(M)", "No NPIs",         c(0.60, 0.85), mn_ymax, "solid")
+p_n <- make_shaded_incidence_plot(incidence_df, "Actual Boosters", "Strict NPIs",
+                                  "(N)", "Strict NPIs",     c(0.15, 0.85), mn_ymax, "twodash")
+p_o <- make_cumulative_policy_plot(cumulative_df, "Actual Boosters", "(O)")
+
+
+plot_i_df <- incidence_df |>
+  filter(
+    policy == "Strict NPIs",
+    vax_scenario %in% c("Early Boosters", "Actual Boosters"),
+    matrix %in% c("inc_leq2dose", "inc_booster")
+  ) |>
+  group_by(vax_scenario, matrix) |>
+  summarise(peak_daily_incidence = max_or_na(value), .groups = "drop") |>
+  mutate(
+    dose_group     = recode(matrix, "inc_leq2dose" = "≤2 Doses", "inc_booster" = "Booster"),
+    scenario_label = factor(as.character(vax_scenario), levels = c("Early Boosters", "Actual Boosters")),
+    dose_group     = factor(dose_group, levels = c("≤2 Doses", "Booster"))
+  )
+
+figure1_5x3 <- (
+  (p_a | p_b | p_c) /
+    (p_d | p_e | p_f) /
+    (p_g | p_h | p_i) /
+    (p_j | p_k | p_l) /
+    (p_m | p_n | p_o)
+) +
+  plot_layout(heights = c(1, 1, 1, 1, 1), widths = c(1, 1, 1, 1, 1)) &
+  theme(plot.margin = margin(8, 35, 8, 8))
+
+png("../figures/figure2_v2.png", width = 13500, height = 10000, res = 300, bg = "white", type = "cairo")
+print(figure1_5x3)
+dev.off()

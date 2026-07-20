@@ -1,19 +1,427 @@
-# Scenario question: How long must Strict NPI (strict NPIs) remain in place, per vaccination scenario,
-# to keep peak concurrent hospitalizations below a threshold?
-#
-# Metric: peak concurrent hospitalizations (bed occupancy). flows.R has no hospital
-# compartment, so occupancy is reconstructed from daily admissions (hosp_total) with a
-# mean length of stay L:  H_t = (1 - 1/L) H_{t-1} + admissions_t; peak = max(H_t).
+# 
+# suppressPackageStartupMessages({
+#   library(macpan2)
+#   library(tidyverse)
+#   library(shellpipes)
+#   library(ggthemes)
+#   library(scales)
+#   library(grid)
+# })
+# 
+# options(dplyr.summarise.inform = FALSE)
+# options(scipen = 9999)
+# 
+# loadEnvironments()
+# 
+# calib     <- rdsRead("calibrate")
+# base_beta <- rdsRead("base")
+# 
+# strict_npi_constant_value <- 0.245
+# 
+# study_start  <- as.Date("2021-12-15")
+# primary_end  <- as.Date("2022-05-22")
+# extended_end <- as.Date("2023-01-01")
+# 
+# primary_threshold  <- 1612
+# extended_threshold <- 3055
+# 
+# primary_threshold_label  <- "Threshold"
+# extended_threshold_label <- "Threshold"
+# 
+# max_duration <- length(base_beta) - as.integer(step_start) + 1L
+# 
+# durations <- seq(0L, 180L, by = 7L)
+# durations <- durations[durations <= max_duration]
+# 
+# vax_scenarios <- c(
+#   "Actual Boosters" = "vax_actual_boosters",
+#   "Early Boosters"  = "vax_early_boosters",
+#   "Faster Boosters" = "vax_faster_rate",
+#   "Slower Boosters" = "vax_slower_rate",
+#   "National Rate"   = "vax_national_rate"
+# )
+# 
+# vax_cols <- c(
+#   "Actual Boosters" = "#4D4D4D",
+#   "Early Boosters"  = "#1f78b4",
+#   "Faster Boosters" = "#ff7f00",
+#   "Slower Boosters" = "magenta",
+#   "National Rate"   = "#33a02c"
+# )
+# 
+# load_booster <- function(stem) {
+#   env <- new.env(parent = emptyenv())
+#   load(paste0(stem, ".rda"), envir = env)
+#   
+#   if (!exists("new_booster", envir = env, inherits = FALSE)) {
+#     stop("Object 'new_booster' was not found in ", paste0(stem, ".rda"))
+#   }
+#   
+#   get("new_booster", envir = env, inherits = FALSE)
+# }
+# 
+# booster_list <- lapply(vax_scenarios, load_booster)
+# 
+# base_spec <- mp_optimized_spec(calib, "modified") |>
+#   mp_tmb_delete(phase = "before", at = 26L)
+# 
+# make_beta <- function(duration) {
+#   duration <- as.integer(duration)
+#   
+#   beta <- base_beta
+#   
+#   if (duration > 0L) {
+#     start_index <- as.integer(step_start)
+#     end_index <- min(start_index + duration - 1L, length(beta))
+#     beta[start_index:end_index] <- strict_npi_constant_value
+#   }
+#   
+#   beta
+# }
+# 
+# prepare_booster_inputs <- function(new_booster) {
+#   required_columns <- c("day", "daily_rate")
+#   missing_columns <- setdiff(required_columns, names(new_booster))
+#   
+#   booster_inputs <- new_booster |>
+#     transmute(
+#       day = as.integer(day),
+#       daily_rate = as.numeric(daily_rate)
+#     ) |>
+#     filter(is.finite(day), is.finite(daily_rate)) |>
+#     arrange(day) |>
+#     group_by(day) |>
+#     summarise(daily_rate = sum(daily_rate), .groups = "drop")
+#   
+#   if (!any(booster_inputs$day == 0L)) {
+#     booster_inputs <- bind_rows(
+#       tibble(day = 0L, daily_rate = 0),
+#       booster_inputs
+#     )
+#   }
+#   
+#   booster_inputs
+# }
+# 
+# total_hosp_one <- function(new_booster, duration, study_end) {
+#   study_end <- as.Date(study_end)
+#   
+#   new_beta <- make_beta(duration)
+#   booster_inputs <- prepare_booster_inputs(new_booster)
+#   
+#   spec <- base_spec |>
+#     mp_tmb_insert(default = list(timeseries_beta = new_beta))
+#   
+#   spec$integers$booster_vac_changepoints <- booster_inputs$day
+#   spec$default$booster_vac_values <- booster_inputs$daily_rate
+#   
+#   trajectory <- spec |>
+#     mp_simulator(
+#       time_steps = sim_horizon,
+#       outputs = "cum_hosp_total"
+#     ) |>
+#     mp_trajectory() |>
+#     mutate(date = as.Date(burn_in_start) + (time - 1)) |>
+#     filter(matrix == "cum_hosp_total", is.finite(value)) |>
+#     arrange(date)
+#   
+#   baseline_value <- trajectory |>
+#     filter(date < study_start) |>
+#     slice_max(order_by = date, n = 1, with_ties = FALSE) |>
+#     pull(value)
+#   
+#   endpoint_value <- trajectory |>
+#     filter(date <= study_end) |>
+#     slice_max(order_by = date, n = 1, with_ties = FALSE) |>
+#     pull(value)
+#   
+#   if (length(baseline_value) == 0L) {
+#     baseline_value <- 0
+#   }
+#   
+#   if (length(endpoint_value) == 0L) {
+#     return(NA_real_)
+#   }
+#   
+#   total_hospitalizations <- endpoint_value - baseline_value
+#   
+#   if (
+#     is.finite(total_hospitalizations) &&
+#     total_hospitalizations < 0 &&
+#     abs(total_hospitalizations) < 1e-8
+#   ) {
+#     total_hospitalizations <- 0
+#   }
+#   
+#   total_hospitalizations
+# }
+# 
+# run_duration_sweep <- function(study_end, window_name) {
+#   map_dfr(names(vax_scenarios), function(scenario_name) {
+#     
+#     booster <- booster_list[[scenario_name]]
+#     
+#     map_dfr(durations, function(days) {
+#       tibble(
+#         vax_scenario = scenario_name,
+#         duration = days,
+#         total_hosp = total_hosp_one(
+#           new_booster = booster,
+#           duration = days,
+#           study_end = study_end
+#         )
+#       )
+#     })
+#   }) |>
+#     mutate(
+#       study_end = as.Date(study_end),
+#       window = window_name,
+#       vax_scenario = factor(vax_scenario, levels = names(vax_scenarios))
+#     )
+# }
+# 
+# duration_to_meet <- function(duration, total_hosp, threshold) {
+#   keep <- is.finite(duration) & is.finite(total_hosp)
+#   duration <- duration[keep]
+#   total_hosp <- total_hosp[keep]
+#   
+#   order_index <- order(duration)
+#   duration <- duration[order_index]
+#   total_hosp <- total_hosp[order_index]
+#   
+#   if (all(total_hosp <= threshold)) {
+#     return(min(duration))
+#   }
+#   
+#   if (all(total_hosp > threshold)) {
+#     return(NA_real_)
+#   }
+#   
+#   crossing_index <- which(total_hosp <= threshold)[1]
+#   
+#   if (crossing_index == 1L) {
+#     return(duration[1])
+#   }
+#   
+#   x1 <- duration[crossing_index - 1L]
+#   x2 <- duration[crossing_index]
+#   y1 <- total_hosp[crossing_index - 1L]
+#   y2 <- total_hosp[crossing_index]
+#   
+#   if (isTRUE(all.equal(y1, y2))) {
+#     return(x2)
+#   }
+#   
+#   x1 + (threshold - y1) * (x2 - x1) / (y2 - y1)
+# }
+# 
+# summarise_threshold <- function(sweep_df, threshold) {
+#   sweep_df |>
+#     group_by(vax_scenario) |>
+#     summarise(
+#       hosp_days_needed = duration_to_meet(
+#         duration = duration,
+#         total_hosp = total_hosp,
+#         threshold = threshold
+#       ),
+#       .groups = "drop"
+#     ) |>
+#     mutate(hosp_days_needed = round(hosp_days_needed))
+# }
+# 
+# make_duration_plot <- function(
+#     sweep_df,
+#     threshold,
+#     threshold_label,
+#     study_end,
+#     output_file,
+#     plot_title,
+#     legend_position = c(0.88, 0.78),
+#     legend_direction = "vertical"
+# ) {
+#   required_tbl <- summarise_threshold(
+#     sweep_df = sweep_df,
+#     threshold = threshold
+#   )
+#   
+#   cross_df <- required_tbl |>
+#     filter(is.finite(hosp_days_needed)) |>
+#     transmute(
+#       vax_scenario,
+#       strict_npi_days = hosp_days_needed,
+#       cross_lab = paste0("~", hosp_days_needed, " days"),
+#       label_y = threshold * 0.18
+#     )
+#   
+#   plot_object <- ggplot(
+#     sweep_df,
+#     aes(x = duration, y = total_hosp, colour = vax_scenario)
+#   ) +
+#     geom_line(linewidth = 2) +
+#     geom_point(size = 4) +
+#     geom_hline(
+#       yintercept = threshold,
+#       colour = "red",
+#       linetype = "dashed",
+#       linewidth = 2
+#     ) +
+#     annotate(
+#       "text",
+#       x = max(sweep_df$duration, na.rm = TRUE),
+#       y = threshold,
+#       label = paste0(threshold_label, ": ", comma(round(threshold))),
+#       hjust = 1,
+#       vjust = -0.6,
+#       size = 8,
+#       colour = "red"
+#     ) +
+#     geom_segment(
+#       data = cross_df,
+#       aes(
+#         x = strict_npi_days,
+#         xend = strict_npi_days,
+#         y = 0,
+#         yend = threshold,
+#         colour = vax_scenario
+#       ),
+#       linetype = "dashed",
+#       linewidth = 0.8,
+#       inherit.aes = FALSE,
+#       show.legend = FALSE
+#     ) +
+#     geom_point(
+#       data = cross_df,
+#       aes(x = strict_npi_days, y = threshold, colour = vax_scenario),
+#       shape = 8,
+#       size = 8,
+#       stroke = 1.8,
+#       inherit.aes = FALSE,
+#       show.legend = FALSE
+#     ) +
+#     geom_text(
+#       data = cross_df,
+#       aes(
+#         x = strict_npi_days,
+#         y = label_y,
+#         label = cross_lab,
+#         colour = vax_scenario
+#       ),
+#       angle = 90,
+#       vjust = -0.5,
+#       size = 8,
+#       inherit.aes = FALSE,
+#       show.legend = FALSE
+#     ) +
+#     scale_colour_manual(
+#       values = vax_cols,
+#       breaks = names(vax_scenarios),
+#       name = NULL,
+#       drop = FALSE
+#     ) +
+#     scale_x_continuous(
+#       breaks = seq(0, max(durations), by = 14),
+#       expand = expansion(mult = c(0.01, 0.03))
+#     ) +
+#     scale_y_continuous(
+#       labels = comma,
+#       expand = expansion(mult = c(0, 0.12))
+#     ) +
+#     labs(
+#       title = plot_title,
+#       x = "Strict NPI duration (days)",
+#       y = "Total hospitalizations"
+#     ) +
+#     guides(
+#       colour = guide_legend(
+#         override.aes = list(shape = 16, linetype = 1, size = 4)
+#       )
+#     ) +
+#     theme_clean() +
+#     theme(
+#       axis.text.x = element_text(size = 30, hjust = 0.5, angle = 90),
+#       axis.text.y = element_text(size = 30),
+#       axis.title.x = element_text(size = 30),
+#       axis.title.y = element_text(size = 30),
+#       plot.title = element_text(size = 35, hjust = 0.5, face = "plain"),
+#       plot.subtitle = element_text(size = 25, hjust = 0.5),
+#       legend.position = legend_position,
+#       legend.justification = "center",
+#       legend.direction = legend_direction,
+#       legend.text = element_text(size = 27),
+#       legend.spacing.y = unit(0.8, "cm"),
+#       legend.key.spacing.y = unit(0.5, "cm"),
+#       legend.background = element_blank(),
+#       panel.grid.major.x = element_blank(),
+#       plot.background = element_blank(),
+#       plot.margin = margin(12, 35, 12, 12)
+#     )
+#   
+#   png(
+#     output_file,
+#     width = 6000,
+#     height = 3600,
+#     res = 300,
+#     bg = "white",
+#     type = "cairo"
+#   )
+#   
+#   print(plot_object)
+#   dev.off()
+#   
+#   list(
+#     plot = plot_object,
+#     required_duration = required_tbl
+#   )
+# }
+# 
+# primary_sweep <- run_duration_sweep(
+#   study_end = primary_end,
+#   window_name = "Primary: 15 Dec 2021 to 22 May 2022"
+# )
+# 
+# extended_sweep <- run_duration_sweep(
+#   study_end = extended_end,
+#   window_name = "Sensitivity: 15 Dec 2021 to 1 Jan 2023"
+# )
+# 
+# primary_result <- make_duration_plot(
+#   sweep_df = primary_sweep,
+#   threshold = primary_threshold,
+#   threshold_label = primary_threshold_label,
+#   study_end = primary_end,
+#   output_file = "../figures/figure4a.png",
+#   plot_title = "Total hospitalizations across strict NPI duration and booster scenarios",
+#   legend_position = c(0.88, 0.78),
+#   legend_direction = "vertical"
+# )
+# 
+# extended_result <- make_duration_plot(
+#   sweep_df = extended_sweep,
+#   threshold = extended_threshold,
+#   threshold_label = extended_threshold_label,
+#   study_end = extended_end,
+#   output_file = "../figures/figure4b.png",
+#   plot_title = "Total hospitalizations across strict NPI duration and booster scenarios",
+#   legend_position = "top",
+#   legend_direction = "horizontal"
+# )
+# 
 
-# Length of stay is uncertain, so the result is not tied to one value: admissions are
-# simulated once, occupancy is reconstructed for a RANGE of L, and the plot shows the
-# central curve with a length-of-stay band. 
 
-library(macpan2)
-library(tidyverse)
-library(shellpipes)
-library(ggthemes)
-library(scales)
+
+
+
+suppressPackageStartupMessages({
+  library(macpan2)
+  library(tidyverse)
+  library(shellpipes)
+  library(ggthemes)
+  library(scales)
+  library(grid)
+})
+
+options(dplyr.summarise.inform = FALSE)
+options(scipen = 9999)
 
 loadEnvironments()
 
@@ -22,199 +430,390 @@ base_beta <- rdsRead("base")
 
 strict_npi_constant_value <- 0.245
 
-# observed N.L. peak concurrent hospitalizations used to anchor the scale (BA.2 wave; 25 for BA.1)
-hosp_threshold   <- 47                
-baseline_peak_hosp <- 47                
-baseline_scenario  <- "Actual Boosters" # real-world baseline used to anchor
+study_start  <- as.Date("2021-12-15")
+primary_end  <- as.Date("2022-05-22")
+extended_end <- as.Date("2023-01-01")
 
-# length-of-stay SENSITIVITY
-los_central <- 13
-los_grid    <- c(7, 10, 13, 16, 20)
+primary_threshold  <- 1612
+extended_threshold <- 3055
 
-# Strict NPI durations in days: 0, 7, 14, ... (weekly), capped at the beta series length.
+primary_threshold_label  <- "Threshold"
+extended_threshold_label <- "Threshold"
+
 max_duration <- length(base_beta) - as.integer(step_start) + 1L
-durations    <- seq(0L, 180L, by = 7L)
-durations    <- durations[durations <= max_duration]
 
-# vaccination scenarios 
+durations <- seq(0L, 180L, by = 7L)
+durations <- durations[durations <= max_duration]
+
 vax_scenarios <- c(
-  "Actual Boosters" = "vax_actual_boosters"
-  , "Early Boosters"  = "vax_early_boosters"
-  , "Faster Boosters" = "vax_faster_rate"
-  , "Slower Boosters" = "vax_slower_rate"
-  , "National Rate"   = "vax_national_rate"
+  "Actual Boosters" = "vax_actual_boosters",
+  "Early Boosters"  = "vax_early_boosters",
+  "Faster Boosters" = "vax_faster_rate",
+  "Slower Boosters" = "vax_slower_rate",
+  "National Rate"   = "vax_national_rate"
+)
+
+vax_cols <- c(
+  "Actual Boosters" = "#4D4D4D",
+  "Early Boosters"  = "#1f78b4",
+  "Faster Boosters" = "#ff7f00",
+  "Slower Boosters" = "magenta",
+  "National Rate"   = "#33a02c"
 )
 
 load_booster <- function(stem) {
-  e <- new.env(); load(paste0(stem, ".rda"), envir = e); get("new_booster", envir = e)
+  env <- new.env(parent = emptyenv())
+  load(paste0(stem, ".rda"), envir = env)
+  
+  if (!exists("new_booster", envir = env, inherits = FALSE)) {
+    stop("Object 'new_booster' was not found in ", paste0(stem, ".rda"))
+  }
+  
+  get("new_booster", envir = env, inherits = FALSE)
 }
 
 booster_list <- lapply(vax_scenarios, load_booster)
 
-# hospital occupancy from admissions 
-# concurrent occupancy H_t = (1 - 1/L) H_{t-1} + admissions_t; peak = max(H_t)
-occ_peak <- function(admissions, los) {
-  max(as.numeric(stats::filter(admissions, filter = 1 - 1 / los, method = "recursive", init = 0)))
-}
-
-# model specification 
-base_spec <- (mp_optimized_spec(calib, "modified")
-              |> mp_tmb_delete(phase = "before", at = 26L)
-)
+base_spec <- mp_optimized_spec(calib, "modified") |>
+  mp_tmb_delete(phase = "before", at = 26L)
 
 make_beta <- function(duration) {
+  duration <- as.integer(duration)
+  
   beta <- base_beta
-  if (duration >= 1) {
-    end <- min(as.integer(step_start) + duration - 1L, length(beta))
-    beta[as.integer(step_start):end] <- strict_npi_constant_value
+  
+  if (duration > 0L) {
+    start_index <- as.integer(step_start)
+    end_index <- min(start_index + duration - 1L, length(beta))
+    beta[start_index:end_index] <- strict_npi_constant_value
   }
+  
   beta
 }
 
-# simulate one (scenario, duration) and return the daily admissions series
-admissions_one <- function(new_booster, duration) {
-  new_beta <- make_beta(duration)
-  spec <- base_spec |> mp_tmb_insert(default = list(timeseries_beta = new_beta))
-  cp <- as.integer(new_booster$day);
-  vv <- as.numeric(new_booster$daily_rate)
-  if (!any(cp == 0)) { cp <- c(0L, cp); vv <- c(0, vv) }
-  spec$integers$booster_vac_changepoints <- as.integer(cp)
-  spec$default$booster_vac_values        <- as.numeric(vv)
+prepare_booster_inputs <- function(new_booster) {
+  required_columns <- c("day", "daily_rate")
+  missing_columns <- setdiff(required_columns, names(new_booster))
   
-  w <- (spec
-        |> mp_simulator(time_steps = sim_horizon, outputs = c("hosp_total"))
-        |> mp_trajectory()
-        |> arrange(time)
-  )
-  w$value
+  booster_inputs <- new_booster |>
+    transmute(
+      day = as.integer(day),
+      daily_rate = as.numeric(daily_rate)
+    ) |>
+    filter(is.finite(day), is.finite(daily_rate)) |>
+    arrange(day) |>
+    group_by(day) |>
+    summarise(daily_rate = sum(daily_rate), .groups = "drop")
+  
+  if (!any(booster_inputs$day == 0L)) {
+    booster_inputs <- bind_rows(
+      tibble(day = 0L, daily_rate = 0),
+      booster_inputs
+    )
+  }
+  
+  booster_inputs
 }
 
-# simulate admissions once per scenario x duration 
-sim_adm <- map_dfr(names(vax_scenarios), function(scenario) {
-  booster <- booster_list[[scenario]]
-  map_dfr(durations, function(days) {
-    tibble(vax_scenario = scenario, duration = days
-           , adm = list(admissions_one(booster, days)))
-  })
-})
+booster_inputs_list <- lapply(booster_list, prepare_booster_inputs)
 
-# occupancy for each length of stay
-sweep_los <- (map_dfr(los_grid, function(L) {
-  sim_adm |> mutate(los = L, peak_hosp = map_dbl(adm, occ_peak, los = L))
-})
-|> select(-adm)
-|> group_by(los)
-|> mutate(peak_hosp = peak_hosp *
-            (baseline_peak_hosp / peak_hosp[vax_scenario == baseline_scenario & duration == 0]))
-|> ungroup()
-|> mutate(vax_scenario = factor(vax_scenario, levels = names(vax_scenarios)))
-)
+simulate_trajectory <- function(booster_inputs, duration) {
+  new_beta <- make_beta(duration)
+  
+  spec <- base_spec |>
+    mp_tmb_insert(default = list(timeseries_beta = new_beta))
+  
+  spec$integers$booster_vac_changepoints <- booster_inputs$day
+  spec$default$booster_vac_values <- booster_inputs$daily_rate
+  
+  spec |>
+    mp_simulator(
+      time_steps = sim_horizon,
+      outputs = "cum_hosp_total"
+    ) |>
+    mp_trajectory() |>
+    mutate(date = as.Date(burn_in_start) + (time - 1)) |>
+    filter(matrix == "cum_hosp_total", is.finite(value)) |>
+    arrange(date)
+}
 
-# central curve + length-of-stay band (min-max across L)
-sweep_central <- sweep_los |> filter(los == los_central)
-sweep_band <- (sweep_los
-               |> group_by(vax_scenario, duration)
-               |> summarise(lo = min(peak_hosp), hi = max(peak_hosp), .groups = "drop")
-)
-plot_df <- sweep_central |> left_join(sweep_band, by = c("vax_scenario", "duration"))
+total_hosp_from_trajectory <- function(trajectory, study_end) {
+  study_end <- as.Date(study_end)
+  
+  baseline_value <- trajectory |>
+    filter(date < study_start) |>
+    slice_max(order_by = date, n = 1, with_ties = FALSE) |>
+    pull(value)
+  
+  endpoint_value <- trajectory |>
+    filter(date <= study_end) |>
+    slice_max(order_by = date, n = 1, with_ties = FALSE) |>
+    pull(value)
+  
+  if (length(baseline_value) == 0L) {
+    baseline_value <- 0
+  }
+  
+  if (length(endpoint_value) == 0L) {
+    return(NA_real_)
+  }
+  
+  total_hospitalizations <- endpoint_value - baseline_value
+  
+  if (
+    is.finite(total_hospitalizations) &&
+    total_hospitalizations < 0 &&
+    abs(total_hospitalizations) < 1e-8
+  ) {
+    total_hospitalizations <- 0
+  }
+  
+  total_hospitalizations
+}
 
-# Strict NPI duration where each scenario first meets the threshold ----
-duration_to_meet <- function(x, y, threshold) {
-  o <- order(x); x <- x[o]; y <- y[o]
-  if (all(y <= threshold)) return(min(x))
-  if (all(y >  threshold)) return(NA_real_)
-  j <- which(y <= threshold)[1]
-  if (j == 1) return(x[1])
-  x1 <- x[j - 1]; x2 <- x[j]; y1 <- y[j - 1]; y2 <- y[j]
+run_all_sweeps <- function() {
+  map_dfr(names(vax_scenarios), function(scenario_name) {
+    booster_inputs <- booster_inputs_list[[scenario_name]]
+    
+    map_dfr(durations, function(days) {
+      trajectory <- simulate_trajectory(booster_inputs, days)
+      
+      tibble(
+        vax_scenario = scenario_name,
+        duration = days,
+        primary_hosp  = total_hosp_from_trajectory(trajectory, primary_end),
+        extended_hosp = total_hosp_from_trajectory(trajectory, extended_end)
+      )
+    })
+  }) |>
+    mutate(vax_scenario = factor(vax_scenario, levels = names(vax_scenarios)))
+}
+
+all_sweeps <- run_all_sweeps()
+
+primary_sweep <- all_sweeps |>
+  transmute(vax_scenario, duration, total_hosp = primary_hosp,
+            study_end = as.Date(primary_end),
+            window = "Primary: 15 Dec 2021 to 22 May 2022")
+
+extended_sweep <- all_sweeps |>
+  transmute(vax_scenario, duration, total_hosp = extended_hosp,
+            study_end = as.Date(extended_end),
+            window = "Sensitivity: 15 Dec 2021 to 1 Jan 2023")
+
+duration_to_meet <- function(duration, total_hosp, threshold) {
+  keep <- is.finite(duration) & is.finite(total_hosp)
+  duration <- duration[keep]
+  total_hosp <- total_hosp[keep]
+  
+  order_index <- order(duration)
+  duration <- duration[order_index]
+  total_hosp <- total_hosp[order_index]
+  
+  if (all(total_hosp <= threshold)) {
+    return(min(duration))
+  }
+  
+  if (all(total_hosp > threshold)) {
+    return(NA_real_)
+  }
+  
+  crossing_index <- which(total_hosp <= threshold)[1]
+  
+  if (crossing_index == 1L) {
+    return(duration[1])
+  }
+  
+  x1 <- duration[crossing_index - 1L]
+  x2 <- duration[crossing_index]
+  y1 <- total_hosp[crossing_index - 1L]
+  y2 <- total_hosp[crossing_index]
+  
+  if (isTRUE(all.equal(y1, y2))) {
+    return(x2)
+  }
+  
   x1 + (threshold - y1) * (x2 - x1) / (y2 - y1)
 }
 
-# required duration for every L, then summarise to central + range
-req_by_los <- (sweep_los
-               |> group_by(vax_scenario, los)
-               |> summarise(days = duration_to_meet(duration, peak_hosp, hosp_threshold), .groups = "drop")
-)
+summarise_threshold <- function(sweep_df, threshold) {
+  sweep_df |>
+    group_by(vax_scenario) |>
+    summarise(
+      hosp_days_needed = duration_to_meet(
+        duration = duration,
+        total_hosp = total_hosp,
+        threshold = threshold
+      ),
+      .groups = "drop"
+    ) |>
+    mutate(hosp_days_needed = round(hosp_days_needed))
+}
 
-required_tbl <- (req_by_los
-                 |> group_by(vax_scenario)
-                 |> summarise(
-                   hosp_days_central = round(days[los == los_central])
-                   , hosp_days_lo    = round(suppressWarnings(min(days, na.rm = TRUE)))
-                   , hosp_days_hi    = round(suppressWarnings(max(days, na.rm = TRUE)))
-                   , .groups = "drop"
-                 )
-                 |> mutate(across(c(hosp_days_lo, hosp_days_hi), ~ ifelse(is.infinite(.x), NA_real_, .x)))
-)
-
-# peak concurrent hospitalizations vs Strict NPI duration ----
-cross_df <- (required_tbl
-             |> filter(!is.na(hosp_days_central))
-             |> mutate(strict_npi_days = hosp_days_central
-                       , cross_lab = paste0("~", round(strict_npi_days))
-                       , lab_y = hosp_threshold * 0.20
-             )
-)
-
-vax_cols <- c(
-  "Actual Boosters" = "#4d4d4d"
-  , "Early Boosters" = "#e6550d"
-  , "Faster Boosters" = "#3182bd"
-  , "Slower Boosters" = "#d6699f"
-  , "National Rate" = "springgreen3"
-)
-
-p <- (
-  ggplot(plot_df, aes(x = duration, y = peak_hosp, colour = vax_scenario))
-  + geom_ribbon(aes(ymin = lo, ymax = hi, fill = vax_scenario), alpha = 0.15, colour = NA)
-  + geom_line(linewidth = 2.0)
-  + geom_point(size = 4)
-  + geom_hline(yintercept = hosp_threshold, colour = "red", linetype = "dashed", linewidth = 1.6)
-  + geom_segment(data = cross_df, aes(x = hosp_days_lo, xend = hosp_days_hi, y = hosp_threshold, yend = hosp_threshold, colour = vax_scenario)
-                 , linewidth = 1.4
-                 , inherit.aes = FALSE
+make_duration_plot <- function(
+    sweep_df,
+    threshold,
+    threshold_label,
+    study_end,
+    output_file,
+    plot_title,
+    legend_position = c(0.88, 0.78),
+    legend_direction = "vertical"
+) {
+  required_tbl <- summarise_threshold(
+    sweep_df = sweep_df,
+    threshold = threshold
   )
-  + geom_segment(data = cross_df, aes(x = strict_npi_days, xend = strict_npi_days, y = 0, yend = hosp_threshold, colour = vax_scenario)
-                 , linetype = "dashed"
-                 , linewidth = 0.7
-                 , inherit.aes = FALSE
+  
+  cross_df <- required_tbl |>
+    filter(is.finite(hosp_days_needed)) |>
+    transmute(
+      vax_scenario,
+      strict_npi_days = hosp_days_needed,
+      cross_lab = paste0("~", hosp_days_needed, " days"),
+      label_y = threshold * 0.18
+    )
+  
+  plot_object <- ggplot(
+    sweep_df,
+    aes(x = duration, y = total_hosp, colour = vax_scenario)
+  ) +
+    geom_line(linewidth = 2) +
+    geom_point(size = 4) +
+    geom_hline(
+      yintercept = threshold,
+      colour = "red",
+      linetype = "dashed",
+      linewidth = 2
+    ) +
+    annotate(
+      "text",
+      x = max(sweep_df$duration, na.rm = TRUE),
+      y = threshold,
+      label = paste0(threshold_label, ": ", comma(round(threshold))),
+      hjust = 1,
+      vjust = -0.6,
+      size = 8,
+      colour = "red"
+    ) +
+    geom_segment(
+      data = cross_df,
+      aes(
+        x = strict_npi_days,
+        xend = strict_npi_days,
+        y = 0,
+        yend = threshold,
+        colour = vax_scenario
+      ),
+      linetype = "dashed",
+      linewidth = 0.8,
+      inherit.aes = FALSE,
+      show.legend = FALSE
+    ) +
+    geom_point(
+      data = cross_df,
+      aes(x = strict_npi_days, y = threshold, colour = vax_scenario),
+      shape = 8,
+      size = 8,
+      stroke = 1.8,
+      inherit.aes = FALSE,
+      show.legend = FALSE
+    ) +
+    geom_text(
+      data = cross_df,
+      aes(
+        x = strict_npi_days,
+        y = label_y,
+        label = cross_lab,
+        colour = vax_scenario
+      ),
+      angle = 90,
+      vjust = -0.5,
+      size = 8,
+      inherit.aes = FALSE,
+      show.legend = FALSE
+    ) +
+    scale_colour_manual(
+      values = vax_cols,
+      breaks = names(vax_scenarios),
+      name = NULL,
+      drop = FALSE
+    ) +
+    scale_x_continuous(
+      breaks = seq(0, max(durations), by = 14),
+      expand = expansion(mult = c(0.01, 0.03))
+    ) +
+    scale_y_continuous(
+      labels = comma,
+      expand = expansion(mult = c(0, 0.12))
+    ) +
+    labs(
+      title = plot_title,
+      x = "Strict NPI duration (days)",
+      y = "Total hospitalizations"
+    ) +
+    guides(
+      colour = guide_legend(
+        override.aes = list(shape = 16, linetype = 1, size = 4)
+      )
+    ) +
+    theme_clean() +
+    theme(
+      axis.text.x = element_text(size = 30, hjust = 0.5, angle = 90),
+      axis.text.y = element_text(size = 30),
+      axis.title.x = element_text(size = 30),
+      axis.title.y = element_text(size = 30),
+      plot.title = element_text(size = 35, hjust = 0.5, face = "plain"),
+      plot.subtitle = element_text(size = 25, hjust = 0.5),
+      legend.position = legend_position,
+      legend.justification = "center",
+      legend.direction = legend_direction,
+      legend.text = element_text(size = 27),
+      legend.spacing.y = unit(0.8, "cm"),
+      legend.key.spacing.y = unit(0.5, "cm"),
+      legend.background = element_blank(),
+      panel.grid.major.x = element_blank(),
+      plot.background = element_blank(),
+      plot.margin = margin(12, 35, 12, 12)
+    )
+  
+  png(
+    output_file,
+    width = 6000,
+    height = 3600,
+    res = 300,
+    bg = "white",
+    type = "cairo"
   )
-  + geom_point(data = cross_df, aes(x = strict_npi_days, y = hosp_threshold, colour = vax_scenario), shape = 8, size = 10, stroke = 2, inherit.aes = FALSE)
-  + geom_text(data = cross_df, aes(x = strict_npi_days, y = lab_y, label = cross_lab, colour = vax_scenario)
-              , angle = 90
-              , vjust = -0.3
-              , size = 8
-              , inherit.aes = FALSE
-              , show.legend = FALSE)
-  + scale_colour_manual(values = vax_cols, name = NULL, drop = FALSE)
-  + scale_fill_manual(values = vax_cols, name = NULL, drop = FALSE, guide = "none")
-  + scale_x_continuous(breaks = seq(0, 180, by = 14))
-  + scale_y_continuous(labels = comma)
-  + labs(
-    title = "Peak hospitalizations across strict NPI duration and vaccination scenarios",
-    x = "Strict NPI duration (days)", y = "Peak hospitalizations")
-  + guides(colour = guide_legend(override.aes = list(shape = 8, linetype = 0, size = 4)))
-  + theme_clean()
-  + theme(
-    axis.text.x = element_text(size = 30, hjust = 0.5, angle = 90),
-    axis.text.y = element_text(size = 30),
-    axis.title.x = element_text(size = 30),
-    axis.title.y = element_text(size = 30),
-    plot.title = element_text(size = 35, hjust = 0.5, face = "plain"),
-    legend.position = c(0.90, 0.80),
-    legend.justification = "center",
-    legend.direction = "vertical",
-    legend.text = element_text(size = 30),
-    legend.spacing.y = unit(1.5, "cm"),        
-    legend.key.spacing.y = unit(1.0, "cm"),    
-    legend.background = element_blank(),
-    panel.grid.major.x = element_blank(),
-    plot.background = element_blank(),
-    plot.margin = margin(12, 35, 12, 12)
+  
+  print(plot_object)
+  dev.off()
+  
+  list(
+    plot = plot_object,
+    required_duration = required_tbl
   )
+}
+
+
+primary_result <- make_duration_plot(
+  sweep_df = primary_sweep,
+  threshold = primary_threshold,
+  threshold_label = primary_threshold_label,
+  study_end = primary_end,
+  output_file = "../figures/figure4a.png",
+  plot_title = "Total hospitalizations across strict NPI duration and booster scenarios",
+  legend_position = c(0.88, 0.78),
+  legend_direction = "vertical"
 )
 
-png("../figures/sensitivity_npi_duration_plot.png", width = 6000, height = 3600, res = 300, bg = "white", type = "cairo")
-print(p)
-dev.off()
-
-rdsSave(sweep_los)
+extended_result <- make_duration_plot(
+  sweep_df = extended_sweep,
+  threshold = extended_threshold,
+  threshold_label = extended_threshold_label,
+  study_end = extended_end,
+  output_file = "../figures/figure4b.png",
+  plot_title = "Total hospitalizations across strict NPI duration and booster scenarios",
+  legend_position = "top",
+  legend_direction = "horizontal"
+)

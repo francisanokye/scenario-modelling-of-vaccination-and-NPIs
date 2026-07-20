@@ -2,17 +2,7 @@ library(tidyverse);theme_set(theme_bw())
 library(shellpipes)
 library(ggthemes)
 
-keep <- c("boosterbox" ,"cum_inc_total", "cum_hosp_total", "cum_death_total",
-          "inc_booster", "inc_leq2dose", "inc", 
-          "inc_leq2dose", "inc_booster", "cum_inc_leq2dose", 
-          "cum_inc_booster","S1", "V2", "V3", "cum_booster"
-          )
-
-combosims <- (bind_rows(rdsReadList())
-	|> filter(matrix %in% keep)
-)
-
-print(combosims)
+combosims <- bind_rows(rdsReadList())
 
 gg <- (ggplot(combosims,aes(time,value,color=vac))
 	+ geom_line(linewidth =2)

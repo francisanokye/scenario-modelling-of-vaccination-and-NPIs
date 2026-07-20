@@ -1,3 +1,4 @@
+
 suppressPackageStartupMessages({
   library(dplyr)
   library(tidyr)
@@ -49,31 +50,63 @@ combosims <- bind_rows(rdsReadList())
 
 combosims <- (combosims 
   |> mutate(vax_scenario = recode(as.character(vac)
-    , "vax_actual_boosters" = "Actual Boosters"
-    , "vax_early_boosters"  = "Early Boosters"
-    , "vax_faster_rate"     = "Faster Boosters"
-    , "vax_slower_rate"     = "Slower Boosters"
-    , "vax_national_rate"   = "National Rate"
-    )
-    , policy = recode(as.character(beta)
-    , "strict_npis" = "Strict NPIs"
-    , "no_npis"   = "No NPIs"
-    , "base" = "Actual"
-    )
-    , date = burn_in_start+ (time - 1)
+  , "vax_actual_boosters" = "Actual Boosters"
+  , "vax_early_boosters"  = "Early Boosters"
+  , "vax_faster_rate"     = "Faster Boosters"
+  , "vax_slower_rate"     = "Slower Boosters"
+  , "vax_national_rate"   = "National Rate"
+  )
+  , policy = recode(as.character(beta)
+  , "strict_npis" = "Strict NPIs"
+  , "no_npis"   = "No NPIs"
+  , "base" = "Actual"
+  )
+  , date = burn_in_start+ (time - 1)
   )
 )
 
-incidence_df  <- (combosims 
-  |> filter(matrix %in% c("inc_booster", "inc_leq2dose", "inc")
-    , date >= omicron_start
-    )
+incidence_df <- combosims |>
+  filter(
+    matrix %in% c("inc", "inc_booster"),
+    date >= omicron_start
+  ) |>
+  select(vax_scenario, policy, date, time, matrix, value) |>
+  pivot_wider(
+    names_from = matrix,
+    values_from = value,
+    values_fill = 0
+  ) |>
+  mutate(
+    inc_leq2dose = pmax(inc - inc_booster, 0)
+  ) |>
+  pivot_longer(
+    cols = c(inc, inc_booster, inc_leq2dose),
+    names_to = "matrix",
+    values_to = "value"
   )
 
-cumulative_df <- (combosims 
-  |> filter(matrix %in% c("cum_inc_total", "cum_inc_leq2dose", "cum_inc_booster")
-    , date >= omicron_start
-    )
+cumulative_df <- combosims |>
+  filter(
+    matrix %in% c("cum_inc_total", "cum_inc_leq2dose", "cum_inc_booster"),
+    date <= omicron_start
+  ) |>
+  group_by(vax_scenario, policy, matrix) |>
+  mutate(
+    baseline_value = value[which.max(date)]
+  ) |>
+  ungroup() |>
+  select(vax_scenario, policy, matrix, baseline_value) |>
+  distinct() |>
+  right_join(
+    combosims |>
+      filter(
+        matrix %in% c("cum_inc_total", "cum_inc_leq2dose", "cum_inc_booster"),
+        date >= omicron_start
+      ),
+    by = c("vax_scenario", "policy", "matrix")
+  ) |>
+  mutate(
+    value = value - baseline_value
   )
 
 # shared y-axis limits
@@ -110,8 +143,6 @@ de_ymax <- (incidence_df
   |> pull(ymax)
 )
 
-incidence_ymax <- max(ab_ymax, de_ymax, gh_ymax, na.rm = TRUE)
-
 # plot helpers ----
 get_panel_cols <- function(scenario_name) {
   cols <- scenario_dose_cols[[as.character(scenario_name)]]
@@ -136,22 +167,25 @@ make_shaded_incidence_plot <- function(
     filter(
       policy       == policy_name,
       vax_scenario == scenario_name,
-      matrix       %in% c("inc", "inc_booster")
+      matrix       %in% c("inc", "inc_booster", "inc_leq2dose")
     ) |>
     select(date, matrix, value) |>
     pivot_wider(names_from = matrix, values_from = value, values_fill = 0)
   
   if (!"inc"         %in% names(plot_df)) plot_df$inc         <- numeric(nrow(plot_df))
   if (!"inc_booster" %in% names(plot_df)) plot_df$inc_booster <- numeric(nrow(plot_df))
-  plot_df$total_inc <- plot_df$inc
+  if (!"inc_leq2dose" %in% names(plot_df)) {
+    plot_df$inc_leq2dose <- pmax(plot_df$inc - plot_df$inc_booster, 0)
+  }
+  plot_df$total_inc <- plot_df$inc_leq2dose + plot_df$inc_booster
   
   y_upper <- if (is.null(y_limit)) max_or_na(plot_df$total_inc) else y_limit
   
   ggplot(plot_df, aes(x = date)) +
-    geom_area(aes(y = total_inc,   fill = "≤2 Doses")) +
-    geom_area(aes(y = inc_booster, fill = "Booster")) +
+    geom_area(aes(y = total_inc,   fill = "Booster")) +
+    geom_area(aes(y = inc_leq2dose, fill = "≤2 Doses")) +
     geom_line(aes(y = total_inc),   colour = "black", linewidth = 2, linetype = boundary_linetype) +
-    geom_line(aes(y = inc_booster), colour = "black", linewidth = 2, linetype = boundary_linetype) +
+    geom_line(aes(y = inc_leq2dose), colour = "black", linewidth = 2, linetype = boundary_linetype) +
     geom_vline(xintercept = intervention_removed, linetype = "dashed", linewidth = 2) +
     scale_fill_manual(values = panel_cols, breaks = c("Booster", "≤2 Doses")) +
     scale_x_date(date_breaks = "1 month", date_labels = "%d %b %Y", expand = c(0.01, 0)) +
@@ -275,21 +309,21 @@ make_cumulative_speed_plot <- function(df, panel_tag) {
     )
 }
 
-# ---- build panels ----
+# build panels ----
 p_a <- make_shaded_incidence_plot(incidence_df, "Actual Boosters", "No NPIs",
-                                  "(A)", "No NPIs",         c(0.60, 0.85), incidence_ymax, "solid")
+                                  "(A)", "No NPIs",         c(0.60, 0.85), ab_ymax, "solid")
 p_b <- make_shaded_incidence_plot(incidence_df, "Actual Boosters", "Strict NPIs",
-                                  "(B)", "Strict NPIs",     c(0.15, 0.85), incidence_ymax, "twodash")
+                                  "(B)", "Strict NPIs",     c(0.15, 0.85), ab_ymax, "twodash")
 p_c <- make_cumulative_policy_plot(cumulative_df, "Actual Boosters", "(C)")
 p_d <- make_shaded_incidence_plot(incidence_df, "Slower Boosters", "Strict NPIs",
-                                  "(D)", "Slower Boosters", c(0.15, 0.85), incidence_ymax, "twodash")
+                                  "(D)", "Slower Boosters", c(0.15, 0.85), de_ymax, "twodash")
 p_e <- make_shaded_incidence_plot(incidence_df, "Faster Boosters", "Strict NPIs",
-                                  "(E)", "Faster Boosters", c(0.15, 0.85), incidence_ymax, "twodash")
+                                  "(E)", "Faster Boosters", c(0.15, 0.85), de_ymax, "twodash")
 p_f <- make_cumulative_speed_plot(cumulative_df, "(F)")
 p_g <- make_shaded_incidence_plot(incidence_df, "Early Boosters",  "Strict NPIs",
-                                  "(G)", "Early Boosters",  c(0.15, 0.85), incidence_ymax, "twodash")
+                                  "(G)", "Early Boosters",  c(0.15, 0.85), gh_ymax, "twodash")
 p_h <- make_shaded_incidence_plot(incidence_df, "Actual Boosters", "Strict NPIs",
-                                  "(H)", "Actual Boosters", c(0.15, 0.85), incidence_ymax, "twodash")
+                                  "(H)", "Actual Boosters", c(0.15, 0.85), gh_ymax, "twodash")
 
 plot_i_df <- incidence_df |>
   filter(
@@ -335,6 +369,6 @@ figure1_3x3 <- (
   plot_layout(heights = c(1, 1, 1), widths = c(1, 1, 1)) &
   theme(plot.margin = margin(8, 35, 8, 8))
 
-png("../figures/incidence_plot.png", width = 13500, height = 8000, res = 300, bg = "white", type = "cairo")
+png("../figures/figure2.png", width = 13500, height = 8000, res = 300, bg = "white", type = "cairo")
 print(figure1_3x3)
 dev.off()

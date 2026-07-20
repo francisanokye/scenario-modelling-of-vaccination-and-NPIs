@@ -12,7 +12,6 @@ if (!any(new_changepoints == 0)) {
   new_values       <- c(0,  new_values)
 }
 
-# newspec <- mp_optimized_spec(calib, "modified")
 newspec$integers$booster_vac_changepoints <- as.integer(new_changepoints)
 newspec$default$booster_vac_values <- as.numeric(new_values)
 

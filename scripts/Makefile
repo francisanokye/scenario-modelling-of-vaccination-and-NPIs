@@ -112,8 +112,12 @@ combo_vacsim.Rout: combo_vacsim.R vax_actual_boosters.base.vacsim.rds vax_early_
 	vax_early_boosters.no_npis.vacsim.rds vax_faster_rate.no_npis.vacsim.rds vax_slower_rate.no_npis.vacsim.rds vax_national_rate.no_npis.vacsim.rds
 	$(pipeR)
 
+
 # incidence plot
 incidence_plot.Rout: incidence_plot.R combo_vacsim.rds constrain_params.rda
+	$(pipeR)
+	
+incidence_plot_v2.Rout: incidence_plot_v2.R combo_vacsim.rds constrain_params.rda
 	$(pipeR)
 
 # severity bar chart 
@@ -125,15 +129,13 @@ npi_duration.Rout: npi_duration.R calibrate.rds base.rds scenario_params.rda vax
 	vax_slower_rate.rda vax_national_rate.rda constrain_params.rda fitsero.rds
 	$(pipeR)
 
-# strict npi duration with sensitivity
-sensitivity_npi_duration.Rout: sensitivity_npi_duration.R calibrate.rds base.rds scenario_params.rda vax_actual_boosters.rda vax_early_boosters.rda vax_faster_rate.rda \
-	vax_slower_rate.rda vax_national_rate.rda constrain_params.rda fitsero.rds
-	$(pipeR)
-	
 # percentage of the population vaccinated at start
 vax_snapshot.Rout: vax_snapshot.R combo_vacsim.rds constrain_params.rda
 	$(pipeR)
 
+diagnose_early_actual.Rout: diagnose_early_actual.R combo_vacsim.rds constrain_params.rda
+	$(pipeR)
+	
 Ignore += makestuff
 msrepo = https://github.com/dushoff
 

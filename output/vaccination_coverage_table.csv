@@ -1,6 +1,6 @@
-"vax_scenario","vac_code","booster_start_date","total_population","No primary series (%total)","Primary series only (%total)","Boosters (%total)","Final booster coverage (%total)","No primary series (%NL)","Primary series only (%NL)","Boosters (%NL)","Final booster coverage (%NL)"
-"Actual Boosters","vax_actual_boosters",2021-11-07,510550,17.2,81.1,0,57.3,17.2,81.1,0,57.3
-"Early Boosters","vax_early_boosters",2021-10-03,510550,23,75.5,0,63.6,23,75.5,0,63.6
-"Faster Boosters","vax_faster_rate",2021-11-07,510550,17.2,81.1,0,57.3,17.2,81.1,0,57.3
-"National Rate","vax_national_rate",2021-11-07,36991981,0.2,1.1,0,0.7,17.2,81.1,0,53.6
-"Slower Boosters","vax_slower_rate",2021-11-07,510550,17.2,81.1,0,31.6,17.2,81.1,0,31.6
+"vax_scenario","vac_code","booster_start_date","total_population","No primary series (%)","Primary series only (%)","Boosters at rollout start (%)","Final booster coverage (%)"
+"Actual Boosters","vax_actual_boosters",2021-11-07,510550,17.2,81.1,0,57.3
+"Early Boosters","vax_early_boosters",2021-10-03,510550,23,75.5,0,57.3
+"Faster Boosters","vax_faster_rate",2021-11-07,510550,17.2,81.1,0,57.1
+"National Rate","vax_national_rate",2021-11-07,510550,17.2,81.1,0,53.6
+"Slower Boosters","vax_slower_rate",2021-11-07,510550,17.2,81.1,0,28.9
