@@ -354,7 +354,7 @@ figure3 <- scenario_legend /
   severe_row +
   plot_layout(
     widths = 1,
-    heights = c(0.045, 1.03, 0.05, 1)
+    heights = c(0.045, 0.92, 0.05, 1.08)
   )
 
 png(
