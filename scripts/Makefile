@@ -125,7 +125,7 @@ severity_plot.Rout: severity_plot.R combo_vacsim.rds constrain_params.rda
 	$(pipeR)
 
 # strict npi duration
-npi_duration.Rout: npi_duration.R calibrate.rds base.rds scenario_params.rda vax_actual_boosters.rda vax_early_boosters.rda vax_faster_rate.rda \
+npi_duration.Rout: npi_duration.R calibrate.rds base.rds no_npis.rds scenario_params.rda vax_actual_boosters.rda vax_early_boosters.rda vax_faster_rate.rda \
 	vax_slower_rate.rda vax_national_rate.rda constrain_params.rda fitsero.rds
 	$(pipeR)
 
