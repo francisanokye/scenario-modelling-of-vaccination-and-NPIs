@@ -204,171 +204,164 @@ coarse_durations <- unique(c(
   max_strict_days
 ))
 
-simulation_cache <- new.env(parent = emptyenv())
-
-cache_key <- function(scenario, strict_days) {
-  paste(scenario, strict_days, sep = "::")
-}
-
-simulate_duration <- function(scenario, strict_days) {
-  key <- cache_key(scenario, strict_days)
+analyse_scenario <- function(scenario) {
+  simulation_cache <- new.env(parent = emptyenv())
   
-  if (exists(key, envir = simulation_cache, inherits = FALSE)) {
-    return(get(key, envir = simulation_cache, inherits = FALSE))
-  }
-  
-  outcomes <- simulate_hospitalizations(
-    booster = booster_list[[scenario]],
-    beta = build_counterfactual_beta(strict_days)
-  )
-  
-  assign(key, outcomes, envir = simulation_cache)
-  outcomes
-}
-
-run_coarse_sweep <- function() {
-  future_map_dfr(names(vax_scenarios), function(scenario) {
-    message("Simulating ", scenario, "...")
+  simulate_duration <- function(strict_days) {
+    key <- as.character(strict_days)
     
-    map_dfr(coarse_durations, function(strict_days) {
-      outcomes <- simulate_duration(scenario, strict_days)
-      
-      tibble(
-        vax_scenario = scenario,
-        strict_npi_days = strict_days,
-        total_hospitalizations = outcomes$total_hospitalizations,
-        peak_hospitalizations = outcomes$peak_hospitalizations
-      )
-    })
-  }) |>
-    mutate(
-      vax_scenario = factor(vax_scenario, levels = names(vax_scenarios)),
-      threshold_met = total_hospitalizations <= hospitalization_threshold,
-      peak_threshold_met = peak_hospitalizations <= peak_hospitalization_threshold
+    if (exists(key, envir = simulation_cache, inherits = FALSE)) {
+      return(get(key, envir = simulation_cache, inherits = FALSE))
+    }
+    
+    outcomes <- simulate_hospitalizations(
+      booster = booster_list[[scenario]],
+      beta = build_counterfactual_beta(strict_days)
     )
-}
-
-find_minimum_duration <- function(scenario, coarse_results) {
-  scenario_results <- coarse_results |>
-    filter(vax_scenario == scenario) |>
-    arrange(strict_npi_days)
-  
-  first_coarse_hit <- scenario_results |>
-    filter(total_hospitalizations <= hospitalization_threshold) |>
-    slice_head(n = 1L)
-  
-  if (nrow(first_coarse_hit) == 0L) {
-    return(tibble(
-      vax_scenario = scenario,
-      minimum_strict_npi_days = NA_integer_,
-      total_hospitalizations = NA_real_,
-      threshold_met = FALSE
-    ))
+    
+    assign(key, outcomes, envir = simulation_cache)
+    outcomes
   }
   
-  upper_day <- first_coarse_hit$strict_npi_days[[1]]
-  lower_day <- max(0L, upper_day - coarse_step + 1L)
-  candidate_days <- seq.int(lower_day, upper_day)
+  message("Simulating ", scenario, "...")
   
-  candidate_results <- map_dfr(candidate_days, function(strict_days) {
-    outcomes <- simulate_duration(scenario, strict_days)
+  coarse_result <- map_dfr(coarse_durations, function(strict_days) {
+    outcomes <- simulate_duration(strict_days)
     
     tibble(
+      vax_scenario = scenario,
       strict_npi_days = strict_days,
-      total_hospitalizations = outcomes$total_hospitalizations
-    )
-  }) |>
-    filter(total_hospitalizations <= hospitalization_threshold) |>
-    arrange(strict_npi_days)
-  
-  if (nrow(candidate_results) == 0L) {
-    return(tibble(
-      vax_scenario = scenario,
-      minimum_strict_npi_days = NA_integer_,
-      total_hospitalizations = NA_real_,
-      threshold_met = FALSE
-    ))
-  }
-  
-  candidate_results |>
-    slice_head(n = 1L) |>
-    transmute(
-      vax_scenario = scenario,
-      minimum_strict_npi_days = strict_npi_days,
-      total_hospitalizations,
-      threshold_met = TRUE
-    )
-}
-
-find_minimum_peak_duration <- function(scenario, coarse_results) {
-  scenario_results <- coarse_results |>
-    filter(vax_scenario == scenario) |>
-    arrange(strict_npi_days)
-  
-  first_coarse_hit <- scenario_results |>
-    filter(peak_hospitalizations <= peak_hospitalization_threshold) |>
-    slice_head(n = 1L)
-  
-  if (nrow(first_coarse_hit) == 0L) {
-    return(tibble(
-      vax_scenario = scenario,
-      minimum_strict_npi_days = NA_integer_,
-      peak_hospitalizations = NA_real_,
-      threshold_met = FALSE
-    ))
-  }
-  
-  upper_day <- first_coarse_hit$strict_npi_days[[1]]
-  lower_day <- max(0L, upper_day - coarse_step + 1L)
-  candidate_days <- seq.int(lower_day, upper_day)
-  
-  candidate_results <- map_dfr(candidate_days, function(strict_days) {
-    outcomes <- simulate_duration(scenario, strict_days)
-    
-    tibble(
-      strict_npi_days = strict_days,
+      total_hospitalizations = outcomes$total_hospitalizations,
       peak_hospitalizations = outcomes$peak_hospitalizations
     )
-  }) |>
-    filter(peak_hospitalizations <= peak_hospitalization_threshold) |>
-    arrange(strict_npi_days)
+  })
   
-  if (nrow(candidate_results) == 0L) {
-    return(tibble(
+  first_total_hit <- coarse_result |>
+    filter(total_hospitalizations <= hospitalization_threshold) |>
+    arrange(strict_npi_days) |>
+    slice_head(n = 1L)
+  
+  first_peak_hit <- coarse_result |>
+    filter(peak_hospitalizations <= peak_hospitalization_threshold) |>
+    arrange(strict_npi_days) |>
+    slice_head(n = 1L)
+  
+  total_candidate_days <- integer()
+  peak_candidate_days <- integer()
+  
+  if (nrow(first_total_hit) > 0L) {
+    total_upper_day <- first_total_hit$strict_npi_days[[1]]
+    total_lower_day <- max(0L, total_upper_day - coarse_step + 1L)
+    total_candidate_days <- seq.int(total_lower_day, total_upper_day)
+  }
+  
+  if (nrow(first_peak_hit) > 0L) {
+    peak_upper_day <- first_peak_hit$strict_npi_days[[1]]
+    peak_lower_day <- max(0L, peak_upper_day - coarse_step + 1L)
+    peak_candidate_days <- seq.int(peak_lower_day, peak_upper_day)
+  }
+  
+  candidate_days <- sort(unique(c(
+    total_candidate_days,
+    peak_candidate_days
+  )))
+  
+  candidate_results <- map_dfr(candidate_days, function(strict_days) {
+    outcomes <- simulate_duration(strict_days)
+    
+    tibble(
+      strict_npi_days = strict_days,
+      total_hospitalizations = outcomes$total_hospitalizations,
+      peak_hospitalizations = outcomes$peak_hospitalizations
+    )
+  })
+  
+  minimum_total <- candidate_results |>
+    filter(total_hospitalizations <= hospitalization_threshold) |>
+    arrange(strict_npi_days) |>
+    slice_head(n = 1L)
+  
+  if (nrow(minimum_total) == 0L) {
+    minimum_total <- tibble(
+      vax_scenario = scenario,
+      minimum_strict_npi_days = NA_integer_,
+      total_hospitalizations = NA_real_,
+      threshold_met = FALSE
+    )
+  } else {
+    minimum_total <- minimum_total |>
+      transmute(
+        vax_scenario = scenario,
+        minimum_strict_npi_days = strict_npi_days,
+        total_hospitalizations,
+        threshold_met = TRUE
+      )
+  }
+  
+  minimum_peak <- candidate_results |>
+    filter(peak_hospitalizations <= peak_hospitalization_threshold) |>
+    arrange(strict_npi_days) |>
+    slice_head(n = 1L)
+  
+  if (nrow(minimum_peak) == 0L) {
+    minimum_peak <- tibble(
       vax_scenario = scenario,
       minimum_strict_npi_days = NA_integer_,
       peak_hospitalizations = NA_real_,
       threshold_met = FALSE
-    ))
+    )
+  } else {
+    minimum_peak <- minimum_peak |>
+      transmute(
+        vax_scenario = scenario,
+        minimum_strict_npi_days = strict_npi_days,
+        peak_hospitalizations,
+        threshold_met = TRUE
+      )
   }
   
-  candidate_results |>
-    slice_head(n = 1L) |>
-    transmute(
-      vax_scenario = scenario,
-      minimum_strict_npi_days = strict_npi_days,
-      peak_hospitalizations,
-      threshold_met = TRUE
-    )
+  list(
+    coarse_result = coarse_result,
+    minimum_total = minimum_total,
+    minimum_peak = minimum_peak
+  )
 }
 
-coarse_results <- run_coarse_sweep()
-
-minimum_duration <- (future_map_dfr(names(vax_scenarios)
-                                    , ~ find_minimum_duration(.x, coarse_results)) 
-                     |> mutate(vax_scenario = factor(vax_scenario, levels = names(vax_scenarios))
-                               , hospitalization_threshold = hospitalization_threshold
-                               , margin_below_threshold = hospitalization_threshold - total_hospitalizations
-                     )
+scenario_results <- future_map(
+  names(vax_scenarios),
+  analyse_scenario,
+  .options = furrr_options(seed = TRUE)
 )
 
-minimum_peak_duration <- (future_map_dfr(names(vax_scenarios)
-                                         , ~ find_minimum_peak_duration(.x, coarse_results)) 
-                          |> mutate(vax_scenario = factor(vax_scenario, levels = names(vax_scenarios))
-                                    , peak_hospitalization_threshold = peak_hospitalization_threshold
-                                    , margin_below_threshold = peak_hospitalization_threshold - peak_hospitalizations
-                          )
-)
+coarse_results <- map_dfr(
+  scenario_results,
+  "coarse_result"
+) |>
+  mutate(
+    vax_scenario = factor(vax_scenario, levels = names(vax_scenarios)),
+    threshold_met = total_hospitalizations <= hospitalization_threshold,
+    peak_threshold_met = peak_hospitalizations <= peak_hospitalization_threshold
+  )
+
+minimum_duration <- map_dfr(
+  scenario_results,
+  "minimum_total"
+) |>
+  mutate(
+    vax_scenario = factor(vax_scenario, levels = names(vax_scenarios)),
+    hospitalization_threshold = hospitalization_threshold,
+    margin_below_threshold = hospitalization_threshold - total_hospitalizations
+  )
+
+minimum_peak_duration <- map_dfr(
+  scenario_results,
+  "minimum_peak"
+) |>
+  mutate(
+    vax_scenario = factor(vax_scenario, levels = names(vax_scenarios)),
+    peak_hospitalization_threshold = peak_hospitalization_threshold,
+    margin_below_threshold = peak_hospitalization_threshold - peak_hospitalizations
+  )
 
 plan(sequential)
 
@@ -382,20 +375,37 @@ threshold_data <- (tibble(
 )
 
 crossing_points <- (minimum_duration 
-                    |> filter(threshold_met) 
-                    |> mutate(label = paste0(minimum_strict_npi_days, " days"))
+  |> filter(threshold_met) 
+  |> mutate(label = paste0(minimum_strict_npi_days))
 )
 
 peak_crossing_points <- (minimum_peak_duration 
-                         |> filter(threshold_met) 
-                         |> mutate(label = paste0(minimum_strict_npi_days))
+  |> filter(threshold_met) 
+  |> mutate(
+   label = paste0(minimum_strict_npi_days),
+   label_x = case_when(
+     vax_scenario == "Faster Boosters" ~ minimum_strict_npi_days - 2,
+     vax_scenario == "Early Boosters" ~ minimum_strict_npi_days + 4,
+     TRUE ~ as.numeric(minimum_strict_npi_days)
+   ),
+   label_y = case_when(
+     vax_scenario == "Faster Boosters" ~ peak_hospitalizations - 22,
+     vax_scenario == "Early Boosters" ~ peak_hospitalizations - 22,
+     TRUE ~ peak_hospitalizations - 0.18 * max(coarse_results$peak_hospitalizations, na.rm = TRUE)
+   ),
+   label_hjust = case_when(
+     vax_scenario == "Faster Boosters" ~ 0.5,
+     vax_scenario == "Early Boosters" ~ 0.5,
+     TRUE ~ 0.5
+   )
+  )
 )
 
 figure4A <- (
   ggplot(coarse_results, aes(x = strict_npi_days,y = total_hospitalizations,colour = vax_scenario)) 
-  + geom_hline(yintercept = hospitalization_threshold,linetype = "dashed",linewidth = 2.5,colour = "red") 
+  + geom_hline(yintercept = hospitalization_threshold,linetype = "dashed",linewidth = 2.5,colour = "grey40") 
   + geom_line(linewidth = 2) 
-  + geom_point(size = 4) 
+  + geom_point(size = 6) 
   + geom_segment(
     data = crossing_points,
     aes(
@@ -416,16 +426,17 @@ figure4A <- (
     colour = vax_scenario)
     , stroke = 1.8
     , shape = 8
-    , size = 10
+    , size = 12
     , inherit.aes = FALSE
     , show.legend = FALSE
   ) 
   + geom_text(
     data = crossing_points,
-    aes(x = minimum_strict_npi_days,y = total_hospitalizations - 1000,label = label,colour = vax_scenario)
-    , angle = 90
-    , vjust = -0.5
-    , size = 10
+    aes(x = minimum_strict_npi_days,y = total_hospitalizations - 1200,label = label,colour = vax_scenario)
+    , angle = 0
+    , vjust = 1
+    , hjust = 1
+    , size = 12
     , inherit.aes = FALSE
     , show.legend = FALSE
   ) 
@@ -453,16 +464,16 @@ figure4A <- (
   + guides(colour = guide_legend(override.aes = list(shape = 16, linetype = 1, size = 4))) 
   + theme_clean() 
   + theme(
-    axis.text.x = element_text(size = 35, hjust = 0.5, angle = 0),
-    axis.text.y = element_text(size = 35),
-    axis.title.x = element_text(size = 35),
-    axis.title.y = element_text(size = 35),
+    axis.text.x = element_text(size = 42, hjust = 0.5, angle = 0),
+    axis.text.y = element_text(size = 42),
+    axis.title.x = element_text(size = 42),
+    axis.title.y = element_text(size = 42),
     plot.title = element_text(size = 45, hjust = 0.5, face = "plain"),
     plot.subtitle = element_text(size = 25, hjust = 0.5),
     legend.position = "bottom",
     legend.justification = "center",
     legend.direction = "horizontal",
-    legend.text = element_text(size = 35),
+    legend.text = element_text(size = 42),
     legend.spacing.y = unit(0.8, "cm"),
     legend.key.spacing.y = unit(0.5, "cm"),
     legend.background = element_blank(),
@@ -478,9 +489,9 @@ peak_y_min <- min(coarse_results$peak_hospitalizations, na.rm = TRUE)
 
 figure4B <- (
   ggplot(coarse_results, aes(x = strict_npi_days,y = peak_hospitalizations,colour = vax_scenario)) 
-  + geom_hline(yintercept = peak_hospitalization_threshold,linetype = "dashed",linewidth = 2.5,colour = "red") 
+  + geom_hline(yintercept = peak_hospitalization_threshold,linetype = "dashed",linewidth = 2.5,colour = "grey40") 
   + geom_line(linewidth = 2) 
-  + geom_point(size = 4) 
+  + geom_point(size = 6) 
   + geom_segment(
     data = peak_crossing_points,
     aes(
@@ -501,16 +512,17 @@ figure4B <- (
     colour = vax_scenario)
     , stroke = 1.8
     , shape = 8
-    , size = 10
+    , size = 12
     , inherit.aes = FALSE
     , show.legend = FALSE
   ) 
   + geom_text(
     data = peak_crossing_points,
-    aes(x = minimum_strict_npi_days,y = peak_hospitalizations - 0.18 * max(coarse_results$peak_hospitalizations, na.rm = TRUE),label = label,colour = vax_scenario)
-    , angle = 90
-    , vjust = -0.5
-    , size = 10
+    aes(x = label_x,y = label_y,label = label,colour = vax_scenario,hjust = label_hjust)
+    , angle = 0
+    , vjust = 0.5
+    , hjust = 1,
+    , size = 12
     , inherit.aes = FALSE
     , show.legend = FALSE
   ) 
@@ -537,16 +549,83 @@ figure4B <- (
   + guides(colour = guide_legend(override.aes = list(shape = 16, linetype = 1, size = 4))) 
   + theme_clean() 
   + theme(
-    axis.text.x = element_text(size = 35, hjust = 0.5, angle = 0),
-    axis.text.y = element_text(size = 35),
-    axis.title.x = element_text(size = 35),
-    axis.title.y = element_text(size = 35),
+    axis.text.x = element_text(size = 42, hjust = 0.5, angle = 0),
+    axis.text.y = element_text(size = 42),
+    axis.title.x = element_text(size = 42),
+    axis.title.y = element_text(size = 42),
     plot.title = element_text(size = 45, hjust = 0.5, face = "plain"),
     plot.subtitle = element_text(size = 25, hjust = 0.5),
     legend.position = "bottom",
     legend.justification = "center",
     legend.direction = "horizontal",
-    legend.text = element_text(size = 35),
+    legend.text = element_text(size = 42),
+    legend.spacing.y = unit(0.8, "cm"),
+    legend.key.spacing.y = unit(0.5, "cm"),
+    legend.background = element_blank(),
+    panel.grid.major.x = element_blank(),
+    plot.background = element_blank(),
+    plot.tag = element_text(size = 45, face = "plain"),
+    plot.margin = margin(12, 35, 12, 12)
+  )
+)
+
+
+figure4C <- (
+  ggplot(coarse_results, aes(
+    x = total_hospitalizations,
+    y = peak_hospitalizations,
+    colour = vax_scenario,
+    group = vax_scenario
+  )) 
+  + geom_vline(
+    xintercept = hospitalization_threshold,
+    linetype = "dashed",
+    linewidth = 2.5,
+    colour = "grey40"
+  )
+  + geom_hline(
+    yintercept = peak_hospitalization_threshold,
+    linetype = "dashed",
+    linewidth = 2.5,
+    colour = "grey40"
+  )
+  + geom_line(linewidth = 2) 
+  + geom_point(size = 6) 
+  + scale_colour_manual(
+    values = vax_colours,
+    breaks = names(vax_scenarios),
+    name = NULL,
+    drop = FALSE
+  ) 
+  + scale_x_continuous(
+    labels = comma,
+    expand = expansion(mult = c(0.02, 0.04))
+  ) 
+  + scale_y_continuous(
+    labels = comma,
+    limits = c(0, NA),
+    expand = expansion(mult = c(0.02, 0.12))
+  ) 
+  + labs(
+    x = "Cumulative hospitalizations",
+    y = "Peak daily hospitalizations",
+    tag = "C"
+  ) 
+  + guides(colour = guide_legend(
+    override.aes = list(shape = 16, linetype = 1, size = 4)
+  )) 
+  + theme_clean() 
+  + theme(
+    axis.text.x = element_text(size = 42, hjust = 0.5, angle = 0),
+    axis.text.y = element_text(size = 42),
+    axis.title.x = element_text(size = 42),
+    axis.title.y = element_text(size = 42),
+    plot.title = element_text(size = 45, hjust = 0.5, face = "plain"),
+    plot.subtitle = element_text(size = 25, hjust = 0.5),
+    legend.position = "bottom",
+    legend.justification = "center",
+    legend.direction = "horizontal",
+    legend.text = element_text(size = 42),
     legend.spacing.y = unit(0.8, "cm"),
     legend.key.spacing.y = unit(0.5, "cm"),
     legend.background = element_blank(),
@@ -559,11 +638,14 @@ figure4B <- (
 
 
 figure4 <- (
-  figure4A / figure4B
-  + plot_layout(guides = "collect")
-  & theme(legend.position = "bottom")
+  figure4A / figure4B / figure4C
+  + plot_layout(guides = "collect", heights = c(1, 1, 1))
+  & theme(
+    legend.position = "bottom",
+    legend.text = element_text(size = 42)
+  )
 )
 
-png("../figures/figure4.png",width = 10000,height = 7000,res = 300,bg = "white",type = "cairo")
+png("../figures/figure4.png",width = 8000,height = 8000,res = 300,bg = "white",type = "cairo")
 print(figure4)
 dev.off()

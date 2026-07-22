@@ -15,6 +15,9 @@ if (!any(new_changepoints == 0)) {
 newspec$integers$booster_vac_changepoints <- as.integer(new_changepoints)
 newspec$default$booster_vac_values <- as.numeric(new_values)
 
+# spec_natl <- spec_natl |> 
+#   mp_tmb_insert(default = list(V2_init = new_V2_init))
+
 newsim <- (newspec
   |> mp_simulator(time_steps = sim_horizon, outputs = model_outputs)
   |> mp_trajectory()

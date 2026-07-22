@@ -26,6 +26,7 @@ new_V2_init <- (Canada
 
 new_V2_init <- round(new_V2_init * (NL_POP/CA_POP))
 
+print(new_V2_init)
 
 Canada <- (Canada 
 	|> filter(type %in% c("numtotal_additional")) 
