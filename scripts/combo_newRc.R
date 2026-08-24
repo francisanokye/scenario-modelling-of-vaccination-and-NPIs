@@ -22,6 +22,9 @@ scenario_levels <- c("base", "no_npis", "strict_npis")
 scenario_labels <- c("base" = "Actual NPIs", "no_npis" = "No NPIs", "strict_npis" = "Strict NPIs")
 scenario_colors <- c("base" = "black", "no_npis"  = "red","strict_npis" = "#00C5CD")
 
+print(comboRc[c("date","beta","Rc","scenario")], n = Inf)
+write.csv(comboRc[c("date","beta","Rc","scenario")], "../output/rc.csv", row.names = FALSE)
+
 gg <- (ggplot(comboRc, aes(date, Rc, color = scenario, fill = scenario))
   + geom_ribbon(
    data = filter(comboRc, scenario == "base", date <= intervention_removed),
@@ -56,6 +59,6 @@ gg <- (ggplot(comboRc, aes(date, Rc, color = scenario, fill = scenario))
   )
 )
 
-png("../figures/reprod_numb.png", width = 5000, height = 2000, res = 300, bg = "white",type = "cairo")
-print(gg)
-dev.off()
+# png("../figures/reprod_numb.png", width = 5000, height = 2000, res = 300, bg = "white",type = "cairo")
+# print(gg)
+# dev.off()

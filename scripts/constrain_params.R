@@ -2,8 +2,6 @@ library(zoo)
 library(lubridate)
 library(shellpipes)
 
-## TODO: organize the constrain parameters into a meaningful way
-
 ## params to constrain fitting
 offset <- 150
 omicron_start <- as.Date("2021-12-15")
@@ -15,10 +13,8 @@ early_start_date <- as.Date("2021-10-04")
 NL_POP <- 510550
 CA_POP <- 36991981
 booster_max <- 296186
-booster_max <- 297000
 upper_plot_time <- 300
-sim_horizon = 530
-new_V2_init <- NA_real_
+sim_horizon = 516
 
 intervention_removed <- as.Date("2022-03-14")
 time_omicron_start <- as.numeric(omicron_start - burn_in_start) + 1

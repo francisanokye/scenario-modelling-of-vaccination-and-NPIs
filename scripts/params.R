@@ -5,7 +5,6 @@ set.seed(2024)
 
 loadEnvironments()
 
-mu_val <- 0.676
 # ------------------------------------------------------------
 # Severe outcome risks per infection
 # ------------------------------------------------------------
@@ -23,21 +22,13 @@ mu_val <- 0.676
 # by \(0.0090\) (or \(0.90\%\) risk per infection), fully vaccinated: multiply infections by \(0.0015\) (or \(0.15\%\) risk per infection) and 
 # booster vaccinated: multiply infections by \(0.0003\) (or \(0.03\%\) risk per infection.
 
-# p_hosp1 <- 0.05
-# p_hosp2 <- 0.014
-# p_hosp3 <- 0.007
-# 
-# p_death1 <- 0.002
-# p_death2 <- 0.001
-# p_death3 <- 0.0005
-
 p_hosp1 <- 0.05
-p_hosp2 <- 0.015
-p_hosp3 <- 0.007
+p_hosp2 <- 0.015 
+p_hosp3 <- 0.003 
 
 p_death1 <- 0.005
 p_death2 <- 0.001
-p_death3 <- 0.0007
+p_death3 <- 0.0005 
 # ------------------------------------------------------------
 # Model parameters
 # ------------------------------------------------------------
@@ -57,7 +48,7 @@ params <- c(
   sigma = 1 / 3,
   gamma_a = 1 / 10,
   gamma_i = 1 / 7,
-  mu = mu_val,
+  mu = 0.676,
 
   # vaccination
   vac2 = 0.09,

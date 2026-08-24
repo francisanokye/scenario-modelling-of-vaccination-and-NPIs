@@ -1,3 +1,4 @@
+
 suppressPackageStartupMessages({
   library(macpan2)
   library(tidyverse)
@@ -25,27 +26,31 @@ actual_beta <- as.numeric(rdsRead("base"))
 no_npi_beta <- as.numeric(rdsRead("no_npis"))
 
 vax_scenarios <- c(
-  "Actual Boosters" = "vax_actual_boosters",
-  "Early Boosters"  = "vax_early_boosters",
-  "Faster Boosters" = "vax_faster_rate",
-  "Slower Boosters" = "vax_slower_rate",
-  "National Rate"   = "vax_national_rate"
+  "actual" = "vax_actual_boosters",
+  "earlier"  = "vax_early_boosters",
+  "faster rate" = "vax_faster_rate",
+  "slower rate" = "vax_slower_rate",
+  "national rate"   = "vax_national_rate"
 )
 
 workers <- max(1L, min(length(vax_scenarios), future::availableCores()))
 plan(multisession, workers = workers)
 
 vax_colours <- c(
-  "Actual Boosters" = "#4D4D4D",
-  "Early Boosters"  = "#1F78B4",
-  "Faster Boosters" = "#FF7F00",
-  "Slower Boosters" = "#CC79A7",
-  "National Rate"   = "#33A02C"
+  "actual" = "#4D4D4D",
+  "earlier"  = "#1F78B4",
+  "faster rate" = "#FF7F00",
+  "slower rate" = "#CC79A7",
+  "national rate"   = "#33A02C"
 )
 
-if (!exists("burn_in_start")) {
-  stop("The object 'burn_in_start' was not loaded by loadEnvironments().")
-}
+vax_scen_legends <- c(
+  "actual" = "Actual NL",
+  "earlier"  = "Earlier",
+  "faster rate" = "Faster rate",
+  "slower rate" = "Slower rate",
+  "national rate"   = "Canadian rate"
+)
 
 burn_in_start <- as.Date(burn_in_start)
 study_start_index <- as.integer(study_start - burn_in_start) + 1L
@@ -68,14 +73,6 @@ load_booster <- function(stem) {
 prepare_booster <- function(new_booster) {
   required_columns <- c("day", "daily_rate")
   missing_columns <- setdiff(required_columns, names(new_booster))
-  
-  if (length(missing_columns) > 0L) {
-    stop(
-      "The booster data are missing: ",
-      paste(missing_columns, collapse = ", "),
-      "."
-    )
-  }
   
   booster <- new_booster |>
     transmute(
@@ -168,10 +165,6 @@ simulate_hospitalizations <- function(booster, beta) {
     summarise(value = max(daily_hospitalizations, na.rm = TRUE)) |>
     pull(value)
   
-  if (length(endpoint) != 1L) {
-    stop("The simulation did not produce a hospitalization value at the study endpoint.")
-  }
-  
   if (length(baseline) == 0L) {
     baseline <- 0
   }
@@ -188,7 +181,7 @@ simulate_hospitalizations <- function(booster, beta) {
   )
 }
 
-actual_booster <- booster_list[["Actual Boosters"]]
+actual_booster <- booster_list[["actual"]]
 
 hospitalization_thresholds <- simulate_hospitalizations(
   booster = actual_booster,
@@ -197,6 +190,9 @@ hospitalization_thresholds <- simulate_hospitalizations(
 
 hospitalization_threshold <- hospitalization_thresholds$total_hospitalizations
 peak_hospitalization_threshold <- hospitalization_thresholds$peak_hospitalizations
+
+# print(hospitalization_thresholds)
+# print(peak_hospitalization_threshold)
 
 max_strict_days <- 150
 coarse_durations <- unique(c(
@@ -374,45 +370,75 @@ threshold_data <- (tibble(
 )
 )
 
+cumulative_label_line <- max(
+  coarse_results$total_hospitalizations,
+  na.rm = TRUE
+) * 1.08
+
+cumulative_label_y <- max(
+  coarse_results$total_hospitalizations,
+  na.rm = TRUE
+) * 1.11
+
+peak_label_line <- max(
+  coarse_results$peak_hospitalizations,
+  na.rm = TRUE
+) * 1.08
+
+peak_label_y <- max(
+  coarse_results$peak_hospitalizations,
+  na.rm = TRUE
+) * 1.11
+
+
 crossing_points <- (minimum_duration 
   |> filter(threshold_met) 
-  |> mutate(label = paste0(minimum_strict_npi_days))
+  |> mutate(
+    label = paste0(minimum_strict_npi_days),
+    label_x = case_when(
+      vax_scenario == "earlier" ~ minimum_strict_npi_days - 1,
+      vax_scenario == "faster rate" ~ minimum_strict_npi_days + 1,
+      vax_scenario == "actual" ~ minimum_strict_npi_days + 2,
+      vax_scenario == "slower rate" ~ minimum_strict_npi_days - 4,
+      vax_scenario == "national rate" ~ minimum_strict_npi_days + 1,
+      TRUE ~ as.numeric(minimum_strict_npi_days)
+    ),
+    label_y = case_when(
+      vax_scenario %in% c("earlier", "slower rate") ~ cumulative_label_y * 1.04,
+      TRUE ~ cumulative_label_y
+    ),
+    segment_yend = cumulative_label_line,
+    label_hjust = 0.5
+  )
 )
-
 peak_crossing_points <- (minimum_peak_duration 
   |> filter(threshold_met) 
   |> mutate(
    label = paste0(minimum_strict_npi_days),
    label_x = case_when(
-     vax_scenario == "Faster Boosters" ~ minimum_strict_npi_days - 2,
-     vax_scenario == "Early Boosters" ~ minimum_strict_npi_days + 4,
+     vax_scenario == "faster rate" ~ minimum_strict_npi_days - 2,
+     vax_scenario == "earlier" ~ minimum_strict_npi_days + 1,
+     vax_scenario == "actual" ~ minimum_strict_npi_days + 3,
      TRUE ~ as.numeric(minimum_strict_npi_days)
    ),
-   label_y = case_when(
-     vax_scenario == "Faster Boosters" ~ peak_hospitalizations - 22,
-     vax_scenario == "Early Boosters" ~ peak_hospitalizations - 22,
-     TRUE ~ peak_hospitalizations - 0.18 * max(coarse_results$peak_hospitalizations, na.rm = TRUE)
-   ),
-   label_hjust = case_when(
-     vax_scenario == "Faster Boosters" ~ 0.5,
-     vax_scenario == "Early Boosters" ~ 0.5,
-     TRUE ~ 0.5
-   )
+   label_y = peak_label_y,
+   segment_yend = peak_label_line,
+   label_hjust = 0.5
   )
 )
 
 figure4A <- (
   ggplot(coarse_results, aes(x = strict_npi_days,y = total_hospitalizations,colour = vax_scenario)) 
-  + geom_hline(yintercept = hospitalization_threshold,linetype = "dashed",linewidth = 2.5,colour = "grey40") 
-  + geom_line(linewidth = 2) 
-  + geom_point(size = 6) 
+  + geom_hline(yintercept = hospitalization_threshold, linetype = "dashed",linewidth = 2.5,colour = "grey40") 
+  + geom_line(linewidth = 1.5) 
+  + geom_point(size = 4) 
   + geom_segment(
     data = crossing_points,
     aes(
       x = minimum_strict_npi_days,
       xend = minimum_strict_npi_days,
-      y = 1500,
-      yend = hospitalization_threshold,
+      y = hospitalization_threshold,
+      yend = segment_yend,
       colour = vax_scenario
     ),
     linetype = "dotdash",
@@ -432,20 +458,27 @@ figure4A <- (
   ) 
   + geom_text(
     data = crossing_points,
-    aes(x = minimum_strict_npi_days,y = total_hospitalizations - 1200,label = label,colour = vax_scenario)
+    aes(
+      x = label_x,
+      y = label_y,
+      label = label,
+      colour = vax_scenario,
+      hjust = label_hjust
+    )
     , angle = 0
-    , vjust = 1
-    , hjust = 1
-    , size = 12
+    , vjust = 0
+    , size = 10
+    , fontface = "bold"
     , inherit.aes = FALSE
     , show.legend = FALSE
   ) 
   + scale_colour_manual(
     values = vax_colours,
     breaks = names(vax_scenarios),
+    labels = vax_scen_legends,
     name = NULL,
     drop = FALSE
-  ) 
+  )
   + scale_x_continuous(
     breaks = seq(0, max_strict_days, by = 14),
     limits = c(0, max_strict_days),
@@ -454,7 +487,7 @@ figure4A <- (
   + scale_y_continuous(
     labels = comma,
     limits = c(1500, NA),
-    expand = expansion(mult = c(0.02, 0.12))
+    expand = expansion(mult = c(0.02, 0.25))
   ) 
   + labs(
     title = "Strict NPI duration required under different booster scenarios",
@@ -464,22 +497,22 @@ figure4A <- (
   + guides(colour = guide_legend(override.aes = list(shape = 16, linetype = 1, size = 4))) 
   + theme_clean() 
   + theme(
-    axis.text.x = element_text(size = 42, hjust = 0.5, angle = 0),
-    axis.text.y = element_text(size = 42),
-    axis.title.x = element_text(size = 42),
-    axis.title.y = element_text(size = 42),
-    plot.title = element_text(size = 45, hjust = 0.5, face = "plain"),
+    axis.text.x = element_text(size = 25, hjust = 0.5, angle = 0),
+    axis.text.y = element_text(size = 25),
+    axis.title.x = element_text(size = 25),
+    axis.title.y = element_text(size = 25),
+    plot.title = element_text(size = 30, hjust = 0.5, face = "plain"),
     plot.subtitle = element_text(size = 25, hjust = 0.5),
     legend.position = "bottom",
     legend.justification = "center",
     legend.direction = "horizontal",
-    legend.text = element_text(size = 42),
+    legend.text = element_text(size = 25),
     legend.spacing.y = unit(0.8, "cm"),
     legend.key.spacing.y = unit(0.5, "cm"),
     legend.background = element_blank(),
     panel.grid.major.x = element_blank(),
     plot.background = element_blank(),
-    plot.tag = element_text(size = 45, face = "plain"),
+    plot.tag = element_text(size = 30, face = "plain"),
     plot.margin = margin(12, 35, 12, 12)
   )
 )
@@ -490,15 +523,15 @@ peak_y_min <- min(coarse_results$peak_hospitalizations, na.rm = TRUE)
 figure4B <- (
   ggplot(coarse_results, aes(x = strict_npi_days,y = peak_hospitalizations,colour = vax_scenario)) 
   + geom_hline(yintercept = peak_hospitalization_threshold,linetype = "dashed",linewidth = 2.5,colour = "grey40") 
-  + geom_line(linewidth = 2) 
-  + geom_point(size = 6) 
+  + geom_line(linewidth = 1.5) 
+  + geom_point(size = 4) 
   + geom_segment(
     data = peak_crossing_points,
     aes(
       x = minimum_strict_npi_days,
       xend = minimum_strict_npi_days,
-      y = 0,
-      yend = peak_hospitalization_threshold,
+      y = peak_hospitalization_threshold,
+      yend = segment_yend,
       colour = vax_scenario
     ),
     linetype = "dotdash",
@@ -518,20 +551,27 @@ figure4B <- (
   ) 
   + geom_text(
     data = peak_crossing_points,
-    aes(x = label_x,y = label_y,label = label,colour = vax_scenario,hjust = label_hjust)
+    aes(
+      x = label_x,
+      y = label_y,
+      label = label,
+      colour = vax_scenario,
+      hjust = label_hjust
+    )
     , angle = 0
-    , vjust = 0.5
-    , hjust = 1,
-    , size = 12
+    , vjust = 0
+    , size = 10
+    , fontface = "bold"
     , inherit.aes = FALSE
     , show.legend = FALSE
   ) 
   + scale_colour_manual(
     values = vax_colours,
     breaks = names(vax_scenarios),
+    labels = vax_scen_legends,
     name = NULL,
     drop = FALSE
-  ) 
+  )
   + scale_x_continuous(
     breaks = seq(0, max_strict_days, by = 14),
     limits = c(0, max_strict_days),
@@ -540,31 +580,31 @@ figure4B <- (
   + scale_y_continuous(
     labels = comma,
     limits = c(0, NA),
-    expand = expansion(mult = c(0.02, 0.12))
+    expand = expansion(mult = c(0.02, 0.25))
   ) 
   + labs(
     x = "Strict NPI duration (days)",
-    y = "Peak daily hospitalizations",
+    y = "Peak hospital admissions",
     tag = "B") 
   + guides(colour = guide_legend(override.aes = list(shape = 16, linetype = 1, size = 4))) 
   + theme_clean() 
   + theme(
-    axis.text.x = element_text(size = 42, hjust = 0.5, angle = 0),
-    axis.text.y = element_text(size = 42),
-    axis.title.x = element_text(size = 42),
-    axis.title.y = element_text(size = 42),
-    plot.title = element_text(size = 45, hjust = 0.5, face = "plain"),
+    axis.text.x = element_text(size = 25, hjust = 0.5, angle = 0),
+    axis.text.y = element_text(size = 25),
+    axis.title.x = element_text(size = 25),
+    axis.title.y = element_text(size = 25),
+    plot.title = element_text(size = 30, hjust = 0.5, face = "plain"),
     plot.subtitle = element_text(size = 25, hjust = 0.5),
     legend.position = "bottom",
     legend.justification = "center",
     legend.direction = "horizontal",
-    legend.text = element_text(size = 42),
+    legend.text = element_text(size = 25),
     legend.spacing.y = unit(0.8, "cm"),
     legend.key.spacing.y = unit(0.5, "cm"),
     legend.background = element_blank(),
     panel.grid.major.x = element_blank(),
     plot.background = element_blank(),
-    plot.tag = element_text(size = 45, face = "plain"),
+    plot.tag = element_text(size = 30, face = "plain"),
     plot.margin = margin(12, 35, 12, 12)
   )
 )
@@ -589,26 +629,28 @@ figure4C <- (
     linewidth = 2.5,
     colour = "grey40"
   )
-  + geom_line(linewidth = 2) 
-  + geom_point(size = 6) 
+  + geom_line(linewidth = 1.5) 
+  + geom_point(size = 4) 
   + scale_colour_manual(
     values = vax_colours,
     breaks = names(vax_scenarios),
+    labels = vax_scen_legends,
     name = NULL,
     drop = FALSE
-  ) 
+  )
   + scale_x_continuous(
     labels = comma,
+    limits = c(NA, 4000), 
     expand = expansion(mult = c(0.02, 0.04))
   ) 
   + scale_y_continuous(
     labels = comma,
-    limits = c(0, NA),
+    limits = c(0, 85),
     expand = expansion(mult = c(0.02, 0.12))
   ) 
   + labs(
     x = "Cumulative hospitalizations",
-    y = "Peak daily hospitalizations",
+    y = "Peak hospital admissions",
     tag = "C"
   ) 
   + guides(colour = guide_legend(
@@ -616,36 +658,35 @@ figure4C <- (
   )) 
   + theme_clean() 
   + theme(
-    axis.text.x = element_text(size = 42, hjust = 0.5, angle = 0),
-    axis.text.y = element_text(size = 42),
-    axis.title.x = element_text(size = 42),
-    axis.title.y = element_text(size = 42),
-    plot.title = element_text(size = 45, hjust = 0.5, face = "plain"),
+    axis.text.x = element_text(size = 25, hjust = 0.5, angle = 0),
+    axis.text.y = element_text(size = 25),
+    axis.title.x = element_text(size = 25),
+    axis.title.y = element_text(size = 25),
+    plot.title = element_text(size = 30, hjust = 0.5, face = "plain"),
     plot.subtitle = element_text(size = 25, hjust = 0.5),
     legend.position = "bottom",
     legend.justification = "center",
     legend.direction = "horizontal",
-    legend.text = element_text(size = 42),
+    legend.text = element_text(size = 25),
     legend.spacing.y = unit(0.8, "cm"),
     legend.key.spacing.y = unit(0.5, "cm"),
     legend.background = element_blank(),
     panel.grid.major.x = element_blank(),
     plot.background = element_blank(),
-    plot.tag = element_text(size = 45, face = "plain"),
+    plot.tag = element_text(size = 30, face = "plain"),
     plot.margin = margin(12, 35, 12, 12)
   )
 )
-
 
 figure4 <- (
   figure4A / figure4B / figure4C
   + plot_layout(guides = "collect", heights = c(1, 1, 1))
   & theme(
     legend.position = "bottom",
-    legend.text = element_text(size = 42)
+    legend.text = element_text(size = 25)
   )
 )
 
-png("../figures/figure4.png",width = 8000,height = 8000,res = 300,bg = "white",type = "cairo")
+png("../figures/figure5.png",width = 4500,height = 5000,res = 300,bg = "white",type = "cairo")
 print(figure4)
 dev.off()

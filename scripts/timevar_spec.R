@@ -28,9 +28,9 @@ booster_daily_vac <- (boosterframe
 initialize_state <- list(
   A1 ~ 1, E1 ~ 1, I1 ~ 1, R1 ~ 2500,
   A2 ~ 1, E2 ~ 1, I2 ~ 1, R2 ~ 2500,
-  A3 ~ 1, E3 ~ 1, I3 ~ 1, R3 ~ 2500,
+  A3 ~ 0, E3 ~ 0, I3 ~ 0, R3 ~ 0,
   V2 ~ 1 + V2_init,
-  V3 ~ 1,
+  V3 ~ 0,
   cum_double_vac ~ 0,
   cum_booster    ~ 0,
   S1 ~ N - A1 - E1 - I1 - R1 - V2 - A2 - E2 - I2 - R2 - V3 - A3 - E3 - I3 - R3

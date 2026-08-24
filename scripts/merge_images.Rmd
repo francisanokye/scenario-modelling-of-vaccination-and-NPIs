@@ -12,7 +12,7 @@ library(magick)
 
 # img_path2 <- "../figures/booster_shots_policy.png"
 img_path1 <- "../figures/reprod_numb.png"
-img_path2 <- "../figures/vax_scenarios.png"
+img_path2 <- "../figures/booster_vac_props_plot.png"
 # img_path3 <- "../figures/timevarying_props_reprod_numb.png"
 
 
@@ -60,7 +60,7 @@ image_write(
 library(magick)
 
 img_path1 <- "../figures/reprod_numb.png"    # Panel A (reference)
-img_path2 <- "../figures/vax_scenarios.png"  # Panel B
+img_path2 <- "../figures/booster_vac_props_plot.png"  # Panel B
 
 img1 <- image_read(img_path1)
 img2 <- image_read(img_path2)
@@ -72,6 +72,6 @@ img2 <- image_resize(img2, geometry = paste0(target_w, "x"))
 # stack: Panel A on top, Panel B below
 combined_img <- image_append(c(img1, img2), stack = TRUE)
 
-image_write(combined_img, path = "../figures/figure1.png", format = "png")
+image_write(combined_img, path = "../figures/figure11.png", format = "png")
 ```
 
