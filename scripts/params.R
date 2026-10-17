@@ -14,21 +14,16 @@ loadEnvironments()
 # estimated thousands of hospitalizations were prevented by boosters during Omicron.
 # https://pmc.ncbi.nlm.nih.gov/articles/PMC8855311/
 
-# Because Omicron was more transmissible but less severe than Delta, the average baseline probability of hospitalization 
-# for an infected individual was roughly 1.0% to 1.5%, and the baseline probability of death (IFR) was roughly 0.1% to 0.3% across 
-# the general population. We obtain how many hospitalizations will occur in a specific vaccination group by multiplying the number of infections 
-#  by \(0.045\) (or \(4.5\%\) risk per infection for unvaccinated, fully Vaccinated: by \(0.012\) (or \(1.2\%\) risk per infection and 
-# booster vaccinated by \(0.004\) (or \(0.4\%\) risk per infection. For the number of deaths, unvaccinated: multiply infections 
-# by \(0.0090\) (or \(0.90\%\) risk per infection), fully vaccinated: multiply infections by \(0.0015\) (or \(0.15\%\) risk per infection) and 
-# booster vaccinated: multiply infections by \(0.0003\) (or \(0.03\%\) risk per infection.
 
-p_hosp1 <- 0.05
-p_hosp2 <- 0.015 
-p_hosp3 <- 0.003 
+# Hospitalization probability per infection
+p_hosp1 <- 0.0186 # 1484
+p_hosp2 <- 0.0071
+p_hosp3 <- 0.0030
 
-p_death1 <- 0.005
-p_death2 <- 0.001
-p_death3 <- 0.0005 
+# Death probability per infection
+p_death1 <- 0.0050
+p_death2 <- 0.0010
+p_death3 <- 0.0005
 # ------------------------------------------------------------
 # Model parameters
 # ------------------------------------------------------------

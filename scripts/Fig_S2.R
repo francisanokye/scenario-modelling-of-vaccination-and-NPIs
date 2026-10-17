@@ -1,3 +1,4 @@
+
 suppressPackageStartupMessages({
   library(dplyr)
   library(tidyr)
@@ -20,32 +21,14 @@ max_or_na <- function(x) {
   if (length(x) == 0) NA_real_ else max(x)
 }
 
-scenario_order <- c(
-  "national rate",
-  "national rate (nl init)",
-  "actual (can init)",
-  "actual"
-)
-
+scenario_order <- c("national rate", "national rate (nl init)", "actual (can init)", "actual")
 policy_order <- c("No NPIs", "Actual NPIs", "Strict NPIs")
 
 scenario_dose_cols <- list(
-  "national rate" = c(
-    "no booster dose" = "#b2df8a",
-    "booster" = "#33A02C"
-  ),
-  "national rate (nl init)" = c(
-    "no booster dose" = "#F2D79B",
-    "booster" = "goldenrod"
-  ),
-  "actual (can init)" = c(
-    "no booster dose" = "#A9CFA9",
-    "booster" = "#006400"
-  ),
-  "actual" = c(
-    "no booster dose" = "grey70",
-    "booster" = "#000000"
-  )
+  "national rate" = c("no booster dose" = "#b2df8a", "booster" = "#33A02C"),
+  "national rate (nl init)" = c("no booster dose" = "#F2D79B", "booster" = "goldenrod"),
+  "actual (can init)" = c("no booster dose" = "#A9CFA9", "booster" = "#006400"),
+  "actual" = c("no booster dose" = "grey70", "booster" = "#000000")
 )
 
 combosims <- bind_rows(rdsReadList()) |>
@@ -86,7 +69,6 @@ incidence_df <- incidence_df |>
   )
 
 global_ymax <- max_or_na(incidence_df$total_inc)
-
 if (!is.finite(global_ymax) || global_ymax <= 0) global_ymax <- 1
 
 get_panel_cols <- function(scenario_name) {
@@ -95,15 +77,7 @@ get_panel_cols <- function(scenario_name) {
   cols
 }
 
-make_incidence_panel <- function(
-    scenario_name,
-    policy_name,
-    panel_tag,
-    panel_title = NULL,
-    show_x_text = FALSE,
-    show_y_title = FALSE
-) {
-  
+make_incidence_panel <- function(scenario_name, policy_name, panel_tag, panel_title = NULL, show_x_text = FALSE, show_y_title = FALSE) {
   panel_df <- incidence_df |>
     filter(vax_scenario == scenario_name, policy == policy_name)
   
@@ -111,7 +85,7 @@ make_incidence_panel <- function(
     stop("No incidence data found for ", scenario_name, " under ", policy_name)
   }
   
-  ggplot(panel_df, aes(x = date)) +
+  p <- ggplot(panel_df, aes(x = date)) +
     geom_ribbon(aes(ymin = 0, ymax = inc_leq2dose, fill = "no booster dose")) +
     geom_ribbon(aes(ymin = inc_leq2dose, ymax = total_inc, fill = "booster")) +
     geom_line(aes(y = inc_leq2dose), colour = "black", linewidth = 1.5) +
@@ -149,9 +123,8 @@ make_incidence_panel <- function(
     ) +
     theme_clean() +
     theme(
-      axis.text.x = element_text(size = 40, hjust = 1, angle = 45),
       axis.text.y = element_text(size = 40),
-      axis.title.x = element_text(size = 40),
+      axis.title.x = element_blank(),
       axis.title.y = element_text(size = 40),
       plot.title = element_text(size = 40, hjust = 0.5, face = "plain"),
       plot.subtitle = element_text(size = 25, hjust = 0.5),
@@ -167,6 +140,22 @@ make_incidence_panel <- function(
       plot.tag = element_text(size = 45, face = "plain"),
       plot.margin = margin(12, 35, 12, 12)
     )
+  
+  if (show_x_text) {
+    p <- p +
+      theme(
+        axis.text.x = element_text(size = 40, hjust = 1, angle = 45),
+        axis.ticks.x = element_line()
+      )
+  } else {
+    p <- p +
+      theme(
+        axis.text.x = element_blank(),
+        axis.ticks.x = element_blank()
+      )
+  }
+  
+  p
 }
 
 make_row_label <- function(label) {
@@ -188,53 +177,22 @@ make_row_label <- function(label) {
     theme_void() +
     theme(plot.margin = margin(0, 5, 0, 5))
 }
-p_a <- make_incidence_panel(
-  "national rate", "No NPIs", "(A)", "No NPIs", FALSE, TRUE
-)
 
-p_b <- make_incidence_panel(
-  "national rate", "Actual NPIs", "(B)", "Actual NPIs"
-)
+p_a <- make_incidence_panel("national rate", "No NPIs", "(A)", "No NPIs", FALSE, TRUE)
+p_b <- make_incidence_panel("national rate", "Actual NPIs", "(B)", "Actual NPIs")
+p_c <- make_incidence_panel("national rate", "Strict NPIs", "(C)", "Strict NPIs")
 
-p_c <- make_incidence_panel(
-  "national rate", "Strict NPIs", "(C)", "Strict NPIs"
-)
+p_d <- make_incidence_panel("national rate (nl init)", "No NPIs", "(D)", show_y_title = TRUE)
+p_e <- make_incidence_panel("national rate (nl init)", "Actual NPIs", "(E)")
+p_f <- make_incidence_panel("national rate (nl init)", "Strict NPIs", "(F)")
 
-p_d <- make_incidence_panel(
-  "national rate (nl init)", "No NPIs", "(D)", show_y_title = TRUE
-)
+p_g <- make_incidence_panel("actual (can init)", "No NPIs", "(G)", show_y_title = TRUE)
+p_h <- make_incidence_panel("actual (can init)", "Actual NPIs", "(H)")
+p_i <- make_incidence_panel("actual (can init)", "Strict NPIs", "(I)")
 
-p_e <- make_incidence_panel(
-  "national rate (nl init)", "Actual NPIs", "(E)"
-)
-
-p_f <- make_incidence_panel(
-  "national rate (nl init)", "Strict NPIs", "(F)"
-)
-
-p_g <- make_incidence_panel(
-  "actual (can init)", "No NPIs", "(G)", show_y_title = TRUE
-)
-
-p_h <- make_incidence_panel(
-  "actual (can init)", "Actual NPIs", "(H)"
-)
-
-p_i <- make_incidence_panel(
-  "actual (can init)", "Strict NPIs", "(I)"
-)
-
-p_j <- make_incidence_panel(
-  "actual", "No NPIs", "(J)", show_x_text = TRUE, show_y_title = TRUE
-)
-
-p_k <- make_incidence_panel(
-  "actual", "Actual NPIs", "(K)", show_x_text = TRUE
-)
-
-p_l <- make_incidence_panel(
-  "actual", "Strict NPIs", "(L)", show_x_text = TRUE
-)
+p_j <- make_incidence_panel("actual", "No NPIs", "(J)", show_x_text = TRUE, show_y_title = TRUE)
+p_k <- make_incidence_panel("actual", "Actual NPIs", "(K)", show_x_text = TRUE)
+p_l <- make_incidence_panel("actual", "Strict NPIs", "(L)", show_x_text = TRUE)
 
 row_1 <- (
   make_row_label("Canadian rate") |
@@ -266,6 +224,14 @@ figureS1_body <- row_1 / row_2 / row_3 / row_4 +
 figureS1 <- figureS1_body &
   theme(plot.background = element_blank())
 
-png("../figures/SI_Fig2.png",width = 14500,height = 9500,res = 300,bg = "white",type = "cairo")
+png(
+  "../figures/SI_Fig2.png",
+  width = 14500,
+  height = 9500,
+  res = 300,
+  bg = "white",
+  type = "cairo"
+)
+
 print(figureS1)
 dev.off()

@@ -33,8 +33,8 @@ scenario_cols <- c(
 
 vax_short_labs <- c(
   "national rate" = "Canadian\nrate",
-  "national rate (nl init)" = "Canadian rate\n(NL initial)",
-  "actual (can init)" = "Actual NL\n(Canadian initial)",
+  "national rate (nl init)" = "Canadian\nrate\n(NL initial)",
+  "actual (can init)" = "Actual NL\n(Canadian\ninitial)",
   "actual" = "Actual\nNL"
 )
 
@@ -177,15 +177,15 @@ make_cumulative_panel <- function(
     ) +
     theme_clean() +
     theme(
-      axis.text.x = element_text(size = 40, hjust = 1, angle = 45),
-      axis.text.y = element_text(size = 40),
-      axis.title.x = element_text(size = 40),
-      axis.title.y = element_text(size = 45),
-      plot.title = element_text(size = 45, hjust = 0.5, face = "plain"),
+      axis.text.x = element_text(size = 50, hjust = 1, angle = 45),
+      axis.text.y = element_text(size = 50),
+      axis.title.x = element_text(size = 50),
+      axis.title.y = element_text(size = 50),
+      plot.title = element_text(size = 50, hjust = 0.5, face = "plain"),
       legend.position = "none",
       panel.grid.major.x = element_blank(),
       plot.background = element_blank(),
-      plot.tag = element_text(size = 45, face = "plain"),
+      plot.tag = element_text(size = 50, face = "plain"),
       plot.margin = margin(12, 35, 12, 12)
     )
 }
@@ -295,7 +295,8 @@ severe_scale_factor <- if (
   1
 }
 
-severe_ymax <- severe_hosp_max
+# Add headroom for labels
+severe_ymax <- severe_hosp_max * 1.12
 
 make_severe_panel <- function(
     policy_name,
@@ -323,12 +324,11 @@ make_severe_panel <- function(
     ) |>
     mutate(
       x = as.numeric(vax_scenario),
-      x_plot = x +
-        if_else(
-          outcome == "Hospitalizations",
-          -0.19,
-          0.19
-        ),
+      x_plot = x + if_else(
+        outcome == "Hospitalizations",
+        -0.21,
+        0.21
+      ),
       plotted_value = if_else(
         outcome == "Deaths",
         severe_outcome * severe_scale_factor,
@@ -336,6 +336,12 @@ make_severe_panel <- function(
       ),
       value_label = comma(round(severe_outcome))
     )
+  
+  hosp_df <- panel_df |>
+    filter(outcome == "Hospitalizations")
+  
+  death_df <- panel_df |>
+    filter(outcome == "Deaths")
   
   ggplot(
     panel_df,
@@ -345,8 +351,7 @@ make_severe_panel <- function(
     )
   ) +
     geom_col(
-      data = panel_df |>
-        filter(outcome == "Hospitalizations"),
+      data = hosp_df,
       aes(fill = vax_scenario),
       width = 0.34,
       colour = "black",
@@ -354,19 +359,42 @@ make_severe_panel <- function(
       alpha = 1
     ) +
     geom_col(
-      data = panel_df |>
-        filter(outcome == "Deaths"),
+      data = death_df,
       aes(fill = vax_scenario),
       width = 0.30,
       colour = "black",
       linewidth = 0.65,
       alpha = 0.35
     ) +
+    
+    # Hospitalization labels: move slightly left
     geom_text(
-      aes(label = value_label),
-      vjust = -0.35,
-      size = 10
+      data = hosp_df,
+      aes(
+        x = x_plot - 0.035,
+        y = plotted_value,
+        label = value_label
+      ),
+      inherit.aes = FALSE,
+      hjust = 0.5,
+      vjust = -0.45,
+      size = 15
     ) +
+    
+    # Death labels: move slightly right
+    geom_text(
+      data = death_df,
+      aes(
+        x = x_plot + 0.035,
+        y = plotted_value,
+        label = value_label
+      ),
+      inherit.aes = FALSE,
+      hjust = 0.5,
+      vjust = -0.45,
+      size = 15
+    ) +
+    
     scale_fill_manual(
       values = scenario_cols,
       breaks = scenario_order,
@@ -375,7 +403,8 @@ make_severe_panel <- function(
     scale_x_continuous(
       breaks = seq_along(scenario_order),
       labels = unname(vax_short_labs[scenario_order]),
-      expand = expansion(mult = c(0.06, 0.06))
+      limits = c(0.55, 4.45),
+      expand = expansion(mult = c(0.02, 0.02))
     ) +
     scale_y_continuous(
       name = y_label,
@@ -396,15 +425,19 @@ make_severe_panel <- function(
     coord_cartesian(clip = "off") +
     theme_clean() +
     theme(
-      axis.text.x = element_text(size = 40, hjust = 0.5),
-      axis.text.y = element_text(size = 40),
-      axis.title.x = element_text(size = 40),
-      axis.title.y = element_text(size = 45),
+      axis.text.x = element_text(
+        size = 40,
+        hjust = 0.5,
+        lineheight = 0.9
+      ),
+      axis.text.y = element_text(size = 50),
+      axis.title.x = element_text(size = 50),
+      axis.title.y = element_text(size = 50),
       legend.position = "none",
       panel.grid.major.x = element_blank(),
       plot.background = element_blank(),
-      plot.tag = element_text(size = 45, face = "plain"),
-      plot.margin = margin(12, 35, 12, 12)
+      plot.tag = element_text(size = 50, face = "plain"),
+      plot.margin = margin(20, 45, 12, 25)
     )
 }
 
@@ -450,21 +483,21 @@ p_f <- make_severe_panel(
 
 scenario_legend_grob <- grobTree(
   segmentsGrob(
-    x0 = unit(c(0.10, 0.32, 0.55, 0.79), "npc"),
-    x1 = unit(c(0.135, 0.355, 0.585, 0.825), "npc"),
+    x0 = unit(c(0.07, 0.29, 0.54, 0.79), "npc"),
+    x1 = unit(c(0.105, 0.325, 0.575, 0.825), "npc"),
     y0 = unit(rep(0.5, 4), "npc"),
     y1 = unit(rep(0.5, 4), "npc"),
     gp = gpar(
       col = unname(scenario_cols[scenario_order]),
-      lwd = 10
+      lwd = 9
     )
   ),
   textGrob(
     label = unname(vax_legend_labs[scenario_order]),
-    x = unit(c(0.142, 0.362, 0.592, 0.832), "npc"),
+    x = unit(c(0.112, 0.332, 0.582, 0.832), "npc"),
     y = unit(rep(0.5, 4), "npc"),
     just = "left",
-    gp = gpar(fontsize = 45)
+    gp = gpar(fontsize = 50)
   )
 )
 
@@ -478,10 +511,10 @@ scenario_legend <- wrap_elements(
 
 outcome_legend_grob <- grobTree(
   rectGrob(
-    x = unit(c(0.44, 0.56), "npc"),
+    x = unit(c(0.425, 0.565), "npc"),
     y = unit(c(0.5, 0.5), "npc"),
-    width = unit(c(0.01, 0.01), "npc"),
-    height = unit(c(0.36, 0.36), "npc"),
+    width = unit(c(0.014, 0.014), "npc"),
+    height = unit(c(0.28, 0.28), "npc"),
     gp = gpar(
       fill = c("grey35", "grey75"),
       col = "black",
@@ -490,10 +523,10 @@ outcome_legend_grob <- grobTree(
   ),
   textGrob(
     label = c("Hospitalizations", "Deaths"),
-    x = unit(c(0.457, 0.577), "npc"),
+    x = unit(c(0.442, 0.582), "npc"),
     y = unit(c(0.5, 0.5), "npc"),
     just = "left",
-    gp = gpar(fontsize = 45)
+    gp = gpar(fontsize = 50)
   )
 )
 
@@ -517,12 +550,17 @@ figureS3 <- scenario_legend /
   severe_row +
   plot_layout(
     widths = 1,
-    heights = c(0.045, 0.92, 0.05, 1.08)
+    heights = c(
+      0.10,
+      0.90,
+      0.09,
+      1.08
+    )
   )
 
 png(
   "../figures/SI_Fig3.png",
-  width = 17500,
+  width = 17000,
   height = 7600,
   res = 300,
   bg = "white",

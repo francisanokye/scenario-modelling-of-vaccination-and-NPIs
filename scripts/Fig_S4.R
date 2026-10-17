@@ -144,16 +144,16 @@ make_cumulative_panel <- function(policy_name, outcome_name, panel_tag, panel_ti
     ) +
     theme_clean() +
     theme(
-      axis.text.x = element_text(size = 40, hjust = 1, angle = 45),
-      axis.text.y = element_text(size = 40),
-      axis.title.x = element_text(size = 40),
-      axis.title.y = element_text(size = 45),
-      plot.title = element_text(size = 45, hjust = 0.5, face = "plain"),
-      plot.subtitle = element_text(size = 45, hjust = 0.5),
+      axis.text.x = element_text(size = 50, hjust = 1, angle = 45),
+      axis.text.y = element_text(size = 50),
+      axis.title.x = element_text(size = 50),
+      axis.title.y = element_text(size = 50),
+      plot.title = element_text(size = 50, hjust = 0.5, face = "plain"),
+      plot.subtitle = element_text(size = 50, hjust = 0.5),
       legend.position = "none",
       legend.justification = "center",
       legend.direction = "horizontal",
-      legend.text = element_text(size = 45),
+      legend.text = element_text(size = 50),
       legend.key.width = unit(1.2, "cm"),
       legend.key.height = unit(0.35, "cm"),
       legend.spacing.x = unit(0.12, "cm"),
@@ -162,7 +162,7 @@ make_cumulative_panel <- function(policy_name, outcome_name, panel_tag, panel_ti
       legend.background = element_blank(),
       panel.grid.major.x = element_blank(),
       plot.background = element_blank(),
-      plot.tag = element_text(size = 45, face = "plain"),
+      plot.tag = element_text(size = 50, face = "plain"),
       plot.margin = margin(12, 35, 12, 12)
     )
 }
@@ -241,7 +241,7 @@ scenario_legend_grob <- grobTree(
     x = unit(c(0.142, 0.362, 0.592, 0.832), "npc"),
     y = unit(rep(0.5, 4), "npc"),
     just = "left",
-    gp = gpar(fontsize = 45)
+    gp = gpar(fontsize = 50)
   )
 )
 

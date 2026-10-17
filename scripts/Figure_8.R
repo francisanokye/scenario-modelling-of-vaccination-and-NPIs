@@ -396,8 +396,8 @@ crossing_points <- (minimum_duration
   |> mutate(
     label = paste0(minimum_strict_npi_days),
     label_x = case_when(
-      vax_scenario == "earlier" ~ minimum_strict_npi_days - 1,
-      vax_scenario == "faster rate" ~ minimum_strict_npi_days + 1,
+      vax_scenario == "earlier" ~ minimum_strict_npi_days - 3,
+      vax_scenario == "faster rate" ~ minimum_strict_npi_days + 3,
       vax_scenario == "actual" ~ minimum_strict_npi_days + 2,
       vax_scenario == "slower rate" ~ minimum_strict_npi_days - 4,
       vax_scenario == "national rate" ~ minimum_strict_npi_days + 1,
@@ -429,9 +429,9 @@ peak_crossing_points <- (minimum_peak_duration
 
 figure4A <- (
   ggplot(coarse_results, aes(x = strict_npi_days,y = total_hospitalizations,colour = vax_scenario)) 
-  + geom_hline(yintercept = hospitalization_threshold, linetype = "dashed",linewidth = 2.5,colour = "grey40") 
-  + geom_line(linewidth = 1.5) 
-  + geom_point(size = 4) 
+  + geom_hline(yintercept = hospitalization_threshold, linetype = "dashed",linewidth = 2,colour = "grey40") 
+  + geom_line(linewidth = 2) 
+  + geom_point(size = 5) 
   + geom_segment(
     data = crossing_points,
     aes(
@@ -486,7 +486,7 @@ figure4A <- (
   ) 
   + scale_y_continuous(
     labels = comma,
-    limits = c(1500, NA),
+    limits = c(0, NA),
     expand = expansion(mult = c(0.02, 0.25))
   ) 
   + labs(
@@ -497,22 +497,22 @@ figure4A <- (
   + guides(colour = guide_legend(override.aes = list(shape = 16, linetype = 1, size = 4))) 
   + theme_clean() 
   + theme(
-    axis.text.x = element_text(size = 25, hjust = 0.5, angle = 0),
-    axis.text.y = element_text(size = 25),
-    axis.title.x = element_text(size = 25),
-    axis.title.y = element_text(size = 25),
-    plot.title = element_text(size = 30, hjust = 0.5, face = "plain"),
+    axis.text.x = element_text(size = 27, hjust = 0.5, angle = 0),
+    axis.text.y = element_text(size = 27),
+    axis.title.x = element_text(size = 29),
+    axis.title.y = element_text(size = 29),
+    plot.title = element_text(size = 32, hjust = 0.5, face = "plain"),
     plot.subtitle = element_text(size = 25, hjust = 0.5),
     legend.position = "bottom",
     legend.justification = "center",
     legend.direction = "horizontal",
-    legend.text = element_text(size = 25),
+    legend.text = element_text(size = 27),
     legend.spacing.y = unit(0.8, "cm"),
     legend.key.spacing.y = unit(0.5, "cm"),
     legend.background = element_blank(),
     panel.grid.major.x = element_blank(),
     plot.background = element_blank(),
-    plot.tag = element_text(size = 30, face = "plain"),
+    plot.tag = element_text(size = 32, face = "bold"),
     plot.margin = margin(12, 35, 12, 12)
   )
 )
@@ -522,9 +522,9 @@ peak_y_min <- min(coarse_results$peak_hospitalizations, na.rm = TRUE)
 
 figure4B <- (
   ggplot(coarse_results, aes(x = strict_npi_days,y = peak_hospitalizations,colour = vax_scenario)) 
-  + geom_hline(yintercept = peak_hospitalization_threshold,linetype = "dashed",linewidth = 2.5,colour = "grey40") 
-  + geom_line(linewidth = 1.5) 
-  + geom_point(size = 4) 
+  + geom_hline(yintercept = peak_hospitalization_threshold,linetype = "dashed",linewidth = 2,colour = "grey40") 
+  + geom_line(linewidth = 2) 
+  + geom_point(size = 5) 
   + geom_segment(
     data = peak_crossing_points,
     aes(
@@ -589,22 +589,22 @@ figure4B <- (
   + guides(colour = guide_legend(override.aes = list(shape = 16, linetype = 1, size = 4))) 
   + theme_clean() 
   + theme(
-    axis.text.x = element_text(size = 25, hjust = 0.5, angle = 0),
-    axis.text.y = element_text(size = 25),
-    axis.title.x = element_text(size = 25),
-    axis.title.y = element_text(size = 25),
-    plot.title = element_text(size = 30, hjust = 0.5, face = "plain"),
+    axis.text.x = element_text(size = 27, hjust = 0.5, angle = 0),
+    axis.text.y = element_text(size = 27),
+    axis.title.x = element_text(size = 29),
+    axis.title.y = element_text(size = 29),
+    plot.title = element_text(size = 32, hjust = 0.5, face = "plain"),
     plot.subtitle = element_text(size = 25, hjust = 0.5),
     legend.position = "bottom",
     legend.justification = "center",
     legend.direction = "horizontal",
-    legend.text = element_text(size = 25),
+    legend.text = element_text(size = 27),
     legend.spacing.y = unit(0.8, "cm"),
     legend.key.spacing.y = unit(0.5, "cm"),
     legend.background = element_blank(),
     panel.grid.major.x = element_blank(),
     plot.background = element_blank(),
-    plot.tag = element_text(size = 30, face = "plain"),
+    plot.tag = element_text(size = 32, face = "bold"),
     plot.margin = margin(12, 35, 12, 12)
   )
 )
@@ -620,17 +620,17 @@ figure4C <- (
   + geom_vline(
     xintercept = hospitalization_threshold,
     linetype = "dashed",
-    linewidth = 2.5,
+    linewidth = 2,
     colour = "grey40"
   )
   + geom_hline(
     yintercept = peak_hospitalization_threshold,
     linetype = "dashed",
-    linewidth = 2.5,
+    linewidth = 2,
     colour = "grey40"
   )
-  + geom_line(linewidth = 1.5) 
-  + geom_point(size = 4) 
+  + geom_line(linewidth = 2) 
+  + geom_point(size = 5) 
   + scale_colour_manual(
     values = vax_colours,
     breaks = names(vax_scenarios),
@@ -640,12 +640,12 @@ figure4C <- (
   )
   + scale_x_continuous(
     labels = comma,
-    limits = c(NA, 4000), 
+    limits = c(NA, 2500), 
     expand = expansion(mult = c(0.02, 0.04))
   ) 
   + scale_y_continuous(
     labels = comma,
-    limits = c(0, 85),
+    limits = c(0, 55),
     expand = expansion(mult = c(0.02, 0.12))
   ) 
   + labs(
@@ -658,35 +658,35 @@ figure4C <- (
   )) 
   + theme_clean() 
   + theme(
-    axis.text.x = element_text(size = 25, hjust = 0.5, angle = 0),
-    axis.text.y = element_text(size = 25),
-    axis.title.x = element_text(size = 25),
-    axis.title.y = element_text(size = 25),
-    plot.title = element_text(size = 30, hjust = 0.5, face = "plain"),
+    axis.text.x = element_text(size = 27, hjust = 0.5, angle = 0),
+    axis.text.y = element_text(size = 27),
+    axis.title.x = element_text(size = 29),
+    axis.title.y = element_text(size = 29),
+    plot.title = element_text(size = 32, hjust = 0.5, face = "plain"),
     plot.subtitle = element_text(size = 25, hjust = 0.5),
     legend.position = "bottom",
     legend.justification = "center",
     legend.direction = "horizontal",
-    legend.text = element_text(size = 25),
+    legend.text = element_text(size = 27),
     legend.spacing.y = unit(0.8, "cm"),
     legend.key.spacing.y = unit(0.5, "cm"),
     legend.background = element_blank(),
     panel.grid.major.x = element_blank(),
     plot.background = element_blank(),
-    plot.tag = element_text(size = 30, face = "plain"),
+    plot.tag = element_text(size = 32, face = "bold"),
     plot.margin = margin(12, 35, 12, 12)
   )
 )
 
 figure4 <- (
   figure4A / figure4B / figure4C
-  + plot_layout(guides = "collect", heights = c(1, 1, 1))
+  + plot_layout(guides = "collect", heights = c(1.1, 1.1, 1))
   & theme(
     legend.position = "bottom",
-    legend.text = element_text(size = 25)
+    legend.text = element_text(size = 27)
   )
 )
 
-png("../figures/figure5.png",width = 4500,height = 5000,res = 300,bg = "white",type = "cairo")
+png("../figures/figure8.png",width = 5000,height = 5500,res = 300,bg = "white",type = "cairo")
 print(figure4)
 dev.off()

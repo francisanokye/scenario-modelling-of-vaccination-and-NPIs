@@ -111,15 +111,6 @@ impmakeR += vacsim
 %.vacsim.Rout: vacsim.R no_npis.betasim.rda %.rda constrain_params.rda
 	$(pipeR)
 
-##%.base.vacsim.Rout: vacsim.R base.betasim.rda %.rda constrain_params.rda
-##	$(pipeR)
-
-##%.strict_npis.vacsim.Rout: vacsim.R strict_npis.betasim.rda %.rda constrain_params.rda
-##	$(pipeR)
-
-##%.no_npis.vacsim.Rout: vacsim.R no_npis.betasim.rda %.rda constrain_params.rda
-##	$(pipeR)
-
 %.base.vacsim.Rout: vacsim.R %.vacspec.rda base.rds constrain_params.rda
 	$(pipeR)
 
@@ -141,18 +132,17 @@ combo_vacsim.Rout: combo_vacsim.R vax_actual_boosters.base.vacsim.rds vax_early_
 ###################### Main Text Figures ################### 
 
 # incidence plot
-Figure_2.Rout: Figure_2.R combo_vacsim.rds constrain_params.rda
-	$(pipeR)
-
-# severity bar chart 
-Figure_3.Rout: Figure_3.R combo_vacsim.rds constrain_params.rda
-	$(pipeR)
-
 Figure_4.Rout: Figure_4.R combo_vacsim.rds constrain_params.rda
+	$(pipeR)
+	
+Figure_6.Rout: Figure_6.R combo_vacsim.rds constrain_params.rda
+	$(pipeR)
+
+Figure_7.Rout: Figure_7.R combo_vacsim.rds constrain_params.rda
 	$(pipeR)
 
 # strict npi duration
-Figure_5.Rout: Figure_5.R calibrate.rds base.rds no_npis.rds scenario_params.rda vax_actual_boosters.rda vax_early_boosters.rda vax_faster_rate.rda \
+Figure_8.Rout: Figure_8.R calibrate.rds base.rds no_npis.rds scenario_params.rda vax_actual_boosters.rda vax_early_boosters.rda vax_faster_rate.rda \
 	vax_slower_rate.rda vax_national_rate.rda constrain_params.rda fitsero.rds
 	$(pipeR)
 
@@ -169,10 +159,11 @@ Fig_S4.Rout: Fig_S4.R combo_vacsim.rds constrain_params.rda
 Fig_S5.Rout: Fig_S5.R combo_vacsim.rds constrain_params.rda
 	$(pipeR)
 
-# vaccination proportions and percentage of the population vaccinated table
-## booster_vac_props.Rout: booster_vac_props.R vax_actual_boosters.rda vax_early_boosters.rda vax_faster_rate.rda \
-##	vax_slower_rate.rda vax_national_rate.rda vax_actual_rate_can_init.rda nl_init_national_rate.rda  combo_vacsim.rds constrain_params.rda
-##	$(pipeR)
+Fig_S6.Rout: Fig_S6.R combo_vacsim.rds constrain_params.rda
+	$(pipeR)
+	
+checks.Rout: checks.R combo_vacsim.rds constrain_params.rda
+	$(pipeR)
 
 Ignore += makestuff
 msrepo = https://github.com/dushoff

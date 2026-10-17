@@ -38,7 +38,7 @@ gg <- (ggplot(comboRc, aes(date, Rc, color = scenario, fill = scenario))
   + scale_x_date(limits = c(omicron_start, analysis_end), date_breaks = "2 weeks", date_labels = "%d %b %Y", expand = c(0.01, 0))
   + labs(
    title = "Reproduction number for counterfactual scenarios",
-   y = "Reproduction number", x = NULL, tag = "A"
+   y = "Reproduction number", x = NULL#, tag = "A"
   )
   + theme_clean()
   + theme(
@@ -59,6 +59,6 @@ gg <- (ggplot(comboRc, aes(date, Rc, color = scenario, fill = scenario))
   )
 )
 
-# png("../figures/reprod_numb.png", width = 5000, height = 2000, res = 300, bg = "white",type = "cairo")
-# print(gg)
-# dev.off()
+png("../figures/reprod_numb.png", width = 5000, height = 2000, res = 300, bg = "white",type = "cairo")
+print(gg)
+dev.off()
